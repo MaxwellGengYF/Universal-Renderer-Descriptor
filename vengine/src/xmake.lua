@@ -5,7 +5,7 @@ BuildProject({
     macros = {"COMMON_DLL_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS"},
     debugMacros = {"_DEBUG"},
     releaseMacros = {"NDEBUG"},
-    files = {"Common/*.cpp", "Utility/*.cpp", "JobSystem/*.cpp", "taskflow/src.cpp"},
+    files = {"Common/*.cpp", "Utility/*.cpp", "taskflow/src.cpp"},
     includePaths = {"./"},
     unityBuildBatch = 4,
     debugException = true,
@@ -91,7 +91,6 @@ if is_plat("windows") then
     add_links("User32", "kernel32", "Gdi32", "Shell32")
 end
 -- File refresher
---[[
 BuildProject({
     projectName = "FileRefresher",
     projectType = "binary",
@@ -101,9 +100,17 @@ BuildProject({
     files = {"CPPBuilder/FileRefresher.cpp"},
     includePaths = {"./"},
     depends = {"VEngine_DLL"},
-    debugException = true
+    debugException = true,
+    releaseException = true
 })
-]]
+after_build(function(target)
+    if not is_mode("release") then
+        return
+    end
+    build_path = "$(buildir)/windows/x64/release/"
+    os.cp("bin/*.dll", build_path)
+end)
+--[[
 BuildProject({
     projectName = "FrustumCulling",
     projectType = "binary",
@@ -116,6 +123,7 @@ BuildProject({
     debugException = true,
     releaseException = true
 })
+
 after_build(function(target)
     if not is_mode("release") then
         return
@@ -125,3 +133,5 @@ after_build(function(target)
     --os.cp(build_path .. "FrustumCulling.dll", "D:/UnityProject/Assets/Plugins")
     --os.cp(build_path .. "VEngine_DLL.dll", "D:/UnityProject/Assets/Plugins")
 end)
+
+]]

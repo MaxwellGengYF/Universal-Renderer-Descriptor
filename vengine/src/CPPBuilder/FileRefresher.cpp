@@ -5,19 +5,22 @@
 #include <Common/DynamicDLL.h>
 #include <Utility/BinaryReader.h>
 #include <Utility/MD5.h>
-#include <JobSystem/ThreadPool.h>
+#include <taskflow/taskflow.hpp>
 int main(int argc, char** argv) {
-	ThreadPool tPool(std::thread::hardware_concurrency());
+	tf::Executor tPool(std::thread::hardware_concurrency());
 	vstd::vector<vstd::string> paths;
-	auto readFileTask = tPool.GetTask<true>(
-		[&] {
-			for (auto&& i : vstd::range(1, argc)) {
-				FileUtility::GetFiles(argv[i], [&](auto&& path) {
-					paths.emplace_back(std::move(path));
-				});
-			}
-		});
-	readFileTask.Execute();
+	auto readFileTask = [&] {
+		tf::Taskflow flow;
+		flow.emplace(
+			[&] {
+				for (auto&& i : vstd::range(1, argc)) {
+					FileUtility::GetFiles(argv[i], [&](auto&& path) {
+						paths.emplace_back(std::move(path));
+					});
+				}
+			});
+		return tPool.run(std::move(flow));
+	}();
 	DllFactoryLoader<toolhub::db::Database const> dll("VEngine_Database.dll", "Database_GetFactory");
 	auto db = vstd::create_unique(dll()->CreateDatabase());
 	vstd::optional<BinaryReader> reader;
@@ -66,24 +69,23 @@ int main(int argc, char** argv) {
 			newDict->Set(std::move(path), md5);
 		}
 	};
-	readFileTask.Complete();
+	readFileTask.wait();
+	tf::Taskflow flow;
+	auto emplaceFun = [&]<bool ava>() {
+		flow.emplace_all(
+			[&](size_t i) {
+				auto&& path = paths[i];
+				ProcessPath.operator()<ava>(path);
+			},
+			paths.size(),
+			std::min<size_t>(paths.size(), std::thread::hardware_concurrency()));
+	};
 	if (avaliable) {
-		tPool.GetParallelTask<true>(
-				 [&](size_t i) {
-					 auto&& path = paths[i];
-					 ProcessPath.operator()<true>(path);
-				 },
-				 paths.size())
-			.Complete();
+		emplaceFun.operator()<true>();
 	} else {
-		tPool.GetParallelTask<true>(
-				 [&](size_t i) {
-					 auto&& path = paths[i];
-					 ProcessPath.operator()<false>(path);
-				 },
-				 paths.size())
-			.Complete();
+		emplaceFun.operator()<false>();
 	}
+	tPool.run(std::move(flow)).wait();
 	binCache.clear();
 	newDict->Serialize(binCache);
 	auto f = fopen("file_record.bin", "wb");

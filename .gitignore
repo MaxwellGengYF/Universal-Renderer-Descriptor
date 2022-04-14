@@ -31,6 +31,7 @@ build/Yaml_CPP.dll
 **/*.pdb
 **/*.ilk
 **/*.vcxproj
+*.bin
 *.cache
 __pycache__/
 Eigen/

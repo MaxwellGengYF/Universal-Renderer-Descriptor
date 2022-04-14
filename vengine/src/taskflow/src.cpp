@@ -2,7 +2,7 @@
 namespace tf {
 
 static ObjectPool<Node> node_pool;
-TF_API ObjectPool<Node>* get_node_pool() {
+ObjectPool<Node>* get_node_pool() {
 	return &node_pool;
 }
 // Procedure: _increment_topology
