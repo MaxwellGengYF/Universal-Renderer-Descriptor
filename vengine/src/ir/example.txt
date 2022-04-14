@@ -1,0 +1,26 @@
+struct 16 T0 {
+	float
+	float2
+	float4
+	float[5]
+}
+struct 16 T1 {
+T0
+}
+const uint[5] fuck = {0,1,2,3,4}
+shared float[5] shit
+
+def callable_0(T1& tt) : void {
+	get_member(v2, tt, 0, 2, 3)
+	get_member(v3, tt, 0, 3)
+	add(v4, v2, v2)
+	abs(v4, v4)
+	set_access(v3, 4, v4)
+	return
+}
+
+def main(Buffer<T1> buffer) : void {
+	get_access(v0, buffer, 2)
+	callable_0(v2)
+	set_access(v0, buffer, 2)
+}
