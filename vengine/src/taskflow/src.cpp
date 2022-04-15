@@ -2204,4 +2204,26 @@ size_t ChromeObserver::num_tasks() const {
 			return sum + exe.size();
 		});
 }
+CriticalSection::CriticalSection(size_t max_workers) : Semaphore{max_workers} {
+}
+FlowBuilder::FlowBuilder(Graph& graph) : _graph{graph} {
+}
+WorkerView::WorkerView(const Worker& w) : _worker{w} {
+}
+
+// function: id
+size_t WorkerView::id() const {
+	return _worker._id;
+}
+
+// Function: queue_size
+size_t WorkerView::queue_size() const {
+	return _worker._wsq.size();
+}
+
+// Function: queue_capacity
+size_t WorkerView::queue_capacity() const {
+	return static_cast<size_t>(_worker._wsq.capacity());
+}
+
 }// namespace tf

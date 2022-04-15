@@ -50,7 +50,13 @@ public:
 	Task emplace(C&& callable);
 	template<typename C>
 	requires(std::is_invocable_v<C, size_t>)
-	Task emplace_all(C&& callable, size_t task_count, size_t thread_count);
+		Task emplace_all(C&& callable, size_t task_count, size_t thread_count);
+	template<
+		typename B,
+		typename C,
+		typename D>
+	requires(std::is_invocable_v<C, size_t>&& std::is_invocable_v<B>&& std::is_invocable_v<D>)
+		Task emplace_all(B&& beforeTask, C&& callable, D&& afterTask, size_t task_count, size_t thread_count);
 	/**
 		@brief creates a dynamic task
 
@@ -724,8 +730,6 @@ private:
 };
 
 // Constructor
-inline FlowBuilder::FlowBuilder(Graph& graph) : _graph{graph} {
-}
 
 // Function: emplace
 template<typename C, std::enable_if_t<is_static_task_v<C>, void>*>

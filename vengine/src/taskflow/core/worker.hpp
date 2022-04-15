@@ -75,7 +75,7 @@ A worker view provides users an immutable interface to observe
 when a worker runs a task, and the view object is only accessible
 from an observer derived from tf::ObserverInterface.
 */
-class WorkerView {
+class TF_API WorkerView {
 
   friend class Executor;
 
@@ -111,23 +111,7 @@ class WorkerView {
 };
 
 // Constructor
-inline WorkerView::WorkerView(const Worker& w) : _worker{w} {
-}
 
-// function: id
-inline size_t WorkerView::id() const {
-  return _worker._id;
-}
-
-// Function: queue_size
-inline size_t WorkerView::queue_size() const {
-  return _worker._wsq.size();
-}
-
-// Function: queue_capacity
-inline size_t WorkerView::queue_capacity() const {
-  return static_cast<size_t>(_worker._wsq.capacity());
-}
 
 
 }  // end of namespact tf -----------------------------------------------------

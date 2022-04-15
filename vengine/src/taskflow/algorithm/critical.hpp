@@ -46,7 +46,7 @@ executor.run(taskflow).wait();
 @endcode
 
 */
-class CriticalSection : public Semaphore {
+class TF_API CriticalSection : public Semaphore {
 
   public:
 
@@ -62,9 +62,7 @@ class CriticalSection : public Semaphore {
     void add(Tasks...tasks);
 };
 
-inline CriticalSection::CriticalSection(size_t max_workers) :
-  Semaphore {max_workers} {
-}
+
 
 template <typename... Tasks>
 void CriticalSection::add(Tasks... tasks) {

@@ -30,7 +30,7 @@ public:
 	}
 	void operator()() const {
 		while (true) {
-			size_t i = ++p->num;
+			size_t i = p->num++;
 			if (i < p->count) {
 				p->func(i);
 			} else {
