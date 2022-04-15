@@ -90,6 +90,7 @@ add_links("C:/VulkanSDK/1.3.204.0/Lib/vulkan-1", "lib/glfw3dll", "lib/glfw3")
 if is_plat("windows") then
     add_links("User32", "kernel32", "Gdi32", "Shell32")
 end
+--[[
 -- File refresher
 BuildProject({
     projectName = "FileRefresher",
@@ -110,10 +111,11 @@ after_build(function(target)
     build_path = "$(buildir)/windows/x64/release/"
     os.cp("bin/*.dll", build_path)
 end)
---[[
+]]
+-- FrustumCulling
 BuildProject({
     projectName = "FrustumCulling",
-    projectType = "binary",
+    projectType = "shared",
     macros = {"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS"},
     debugMacros = {"_DEBUG"},
     releaseMacros = {"NDEBUG"},
@@ -134,4 +136,3 @@ after_build(function(target)
     --os.cp(build_path .. "VEngine_DLL.dll", "D:/UnityProject/Assets/Plugins")
 end)
 
-]]

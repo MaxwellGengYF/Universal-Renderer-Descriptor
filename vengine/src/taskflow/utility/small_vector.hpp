@@ -76,13 +76,13 @@ protected:
 
     void *NewElts;
     if (BeginX == FirstEl) {
-      NewElts = std::malloc(NewCapacityInBytes);
+      NewElts = vengine_malloc(NewCapacityInBytes);
 
       // Copy the elements over.  No need to run dtors on PODs.
       memcpy(NewElts, this->BeginX, CurSizeBytes);
     } else {
       // If this wasn't grown from the inline copy, grow the allocated space.
-      NewElts = realloc(this->BeginX, NewCapacityInBytes);
+      NewElts = vengine_realloc(this->BeginX, NewCapacityInBytes);
     }
     //assert(NewElts && "Out of memory");
 
@@ -291,7 +291,7 @@ void SmallVectorTemplateBase<T, isPodLike>::grow(size_t MinSize) {
   size_t NewCapacity = size_t(tf::detail::NextCapacity(CurCapacity+2));
   if (NewCapacity < MinSize)
     NewCapacity = MinSize;
-  T *NewElts = static_cast<T*>(std::malloc(NewCapacity*sizeof(T)));
+  T *NewElts = static_cast<T*>(vengine_malloc(NewCapacity*sizeof(T)));
 
   // Move the elements over.
   this->uninitialized_move(this->begin(), this->end(), NewElts);
@@ -301,7 +301,7 @@ void SmallVectorTemplateBase<T, isPodLike>::grow(size_t MinSize) {
 
   // If this wasn't grown from the inline copy, deallocate the old space.
   if (!this->isSmall())
-    std::free(this->begin());
+    vengine_free(this->begin());
 
   this->setEnd(NewElts+CurSize);
   this->BeginX = NewElts;
@@ -395,7 +395,7 @@ public:
 
     // If this wasn't grown from the inline copy, deallocate the old space.
     if (!this->isSmall())
-      std::free(this->begin());
+      vengine_free(this->begin());
   }
 
 
@@ -822,7 +822,7 @@ SmallVectorImpl<T> &SmallVectorImpl<T>::operator=(SmallVectorImpl<T> &&RHS) {
   // If the RHS isn't small, clear this vector and then steal its buffer.
   if (!RHS.isSmall()) {
     this->destroy_range(this->begin(), this->end());
-    if (!this->isSmall()) std::free(this->begin());
+    if (!this->isSmall()) vengine_free(this->begin());
     this->BeginX = RHS.BeginX;
     this->EndX = RHS.EndX;
     this->CapacityX = RHS.CapacityX;

@@ -1,8 +1,6 @@
 #pragma once
 
-#include <iostream>
-#include <string>
-
+#include "../config.h"
 namespace tf {
 
 // Procedure: ostreamize
@@ -20,8 +18,8 @@ void ostreamize(std::ostream& os, T&& token, Rest&&... rest) {
 
 // Function: stringify
 template <typename... ArgsT>
-std::string stringify(ArgsT&&... args) {
-  std::ostringstream oss;
+string stringify(ArgsT&&... args) {
+  ostringstream oss;
   ostreamize(oss, std::forward<ArgsT>(args)...);
   return oss.str();
 }

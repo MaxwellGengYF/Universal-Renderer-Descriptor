@@ -12,7 +12,7 @@ namespace tf {
 template <typename B, typename E, typename O, typename C>
 Task FlowBuilder::transform(B first1, E last1, O d_first, C c) {
 
-  using namespace std::string_literals;
+  using namespace string_literals;
 
   using B_t = std::decay_t<unwrap_ref_decay_t<B>>;
   using E_t = std::decay_t<unwrap_ref_decay_t<E>>;
@@ -111,7 +111,7 @@ Task FlowBuilder::transform(B first1, E last1, O d_first, C c) {
 template <typename B1, typename E1, typename B2, typename O, typename C>
 Task FlowBuilder::transform(B1 first1, E1 last1, B2 first2, O d_first, C c) {
 
-  using namespace std::string_literals;
+  using namespace string_literals;
 
   using B1_t = std::decay_t<unwrap_ref_decay_t<B1>>;
   using E1_t = std::decay_t<unwrap_ref_decay_t<E1>>;

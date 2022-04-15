@@ -33,7 +33,7 @@ FrustumCulling::~FrustumCulling() {
 
 void FrustumCulling::Task(size_t i) {
 	args[i].multi_visit(
-		[&](auto&& v) { executedTask++; CullCSM(v.first, v.second, i); },
+		[&](auto&& v) { CullCSM(v.first, v.second, i); },
 		[&](auto&& v) { CullCamera(v); });
 }
 void FrustumCulling::CullCamera(CameraArgs const& args) {
@@ -93,6 +93,7 @@ void FrustumCulling::CullCSM(CSMArgs const& args, vstd::span<ShadowmapData> casc
 				obj.up,
 				obj.forward,
 				obj.position);
+
 			if (MathLib::BoxIntersect(
 					mat,
 					frustumPlanes,
@@ -131,17 +132,16 @@ VENGINE_UNITY_EXTERN void RemoveCullObject(uint idx) {
 		context->transforms.erase_last();
 }
 VENGINE_UNITY_EXTERN void ExecuteCull() {
-	context->planedTask++;
 	tf::Taskflow flow;
-	auto beforeTask = flow.emplace([&] {
-		context->cullResults.resize(context->args.size());
-	});
-	auto afterTask = flow.emplace_all(
+	flow.emplace_all(
+		[&] {
+			context->cullResults.resize(context->args.size());
+		},
 		[](size_t i) {
 			context->Task(i);
 		},
+		[] {},
 		context->args.size(), context->executor.num_workers());
-	beforeTask.precede(afterTask);
 	context->shadowTask = context->executor.run(std::move(flow));
 }
 VENGINE_UNITY_EXTERN void CompleteCull() {
@@ -174,7 +174,7 @@ VENGINE_UNITY_EXTERN void CullingResult(
 }
 
 }// namespace toolhub::renderer
-#define EXPORT_EXE
+//#define EXPORT_EXE
 #ifdef EXPORT_EXE
 int main() {
 

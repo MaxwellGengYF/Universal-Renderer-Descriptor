@@ -13,7 +13,7 @@ Task FlowBuilder::reduce(B beg, E end, T& init, O bop) {
 
   using B_t = std::decay_t<unwrap_ref_decay_t<B>>;
   using E_t = std::decay_t<unwrap_ref_decay_t<E>>;
-  using namespace std::string_literals;
+  using namespace string_literals;
 
   Task task = emplace([b=beg, e=end, &r=init, bop] (Subflow& sf) mutable {
 
@@ -139,7 +139,7 @@ Task FlowBuilder::transform_reduce(
 
   using B_t = std::decay_t<unwrap_ref_decay_t<B>>;
   using E_t = std::decay_t<unwrap_ref_decay_t<E>>;
-  using namespace std::string_literals;
+  using namespace string_literals;
 
   Task task = emplace([b=beg, e=end, &r=init, bop, uop] (Subflow& sf) mutable {
 

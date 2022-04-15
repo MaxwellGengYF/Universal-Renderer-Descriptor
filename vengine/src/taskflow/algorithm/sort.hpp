@@ -13,7 +13,7 @@ constexpr size_t parallel_sort_cutoff() {
 
   constexpr size_t object_size = sizeof(value_type);
 
-  if constexpr(std::is_same_v<value_type, std::string>) {
+  if constexpr(std::is_same_v<value_type, string>) {
     return 128;
   }
   else {
@@ -361,7 +361,7 @@ void parallel_pdqsort(
 template <typename RandItr, typename C>
 void parallel_3wqsort(tf::Subflow& sf, RandItr first, RandItr last, C compare) {
 
-  using namespace std::string_literals;
+  using namespace string_literals;
 
   constexpr auto cutoff = parallel_sort_cutoff<RandItr>();
 

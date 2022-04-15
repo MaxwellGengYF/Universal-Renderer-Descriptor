@@ -10,7 +10,8 @@ mat4 GetCSMTransformMat(const vec3& right, const vec3& up, const vec3& forward, 
 	target[3] = vec4(position, 1);
 	return target;
 }
-static std::array<vec3, 5> GetFrustumRay(
+static constexpr size_t DIR_COUNT = 4;
+static std::array<vec3, DIR_COUNT> GetFrustumRay(
 	vec3 const& right,
 	vec3 const& up,
 	vec3 const& forward,
@@ -24,18 +25,17 @@ static std::array<vec3, 5> GetFrustumRay(
 		normalize(forward - upDir - rightDir),
 		normalize(forward + upDir - rightDir),
 		normalize(forward - upDir + rightDir),
-		normalize(forward + upDir + rightDir),
-		forward};
+		normalize(forward + upDir + rightDir)};
 }
 static vec4 GetCascadeSphere(
 	vec3 pos,
-	std::array<vec3, 5> const& dirs,
+	std::array<vec3, DIR_COUNT> const& dirs,
 	float nearDist,
 	float farDist) {
-	std::array<vec3, 10> poses;
-	for (auto i : vstd::range(5)) {
+	std::array<vec3, DIR_COUNT * 2> poses;
+	for (auto i : vstd::range(DIR_COUNT)) {
 		poses[i] = pos + dirs[i] * nearDist;
-		poses[i + 5] = pos + dirs[i] * farDist;
+		poses[i + DIR_COUNT] = pos + dirs[i] * farDist;
 	}
 	vec3 center(0);
 	for (auto&& v : poses) {

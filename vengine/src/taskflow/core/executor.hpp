@@ -539,7 +539,7 @@ class TF_API Executor {
     This member function is thread-safe.
     */
     template <typename F, typename... ArgsT>
-    auto named_async(const std::string& name, F&& f, ArgsT&&... args);
+    auto named_async(const string& name, F&& f, ArgsT&&... args);
 
     /**
     @brief similar to tf::Executor::async but does not return a future object
@@ -573,7 +573,7 @@ class TF_API Executor {
     This member function is thread-safe.
     */
     template <typename F, typename... ArgsT>
-    void named_silent_async(const std::string& name, F&& f, ArgsT&&... args);
+    void named_silent_async(const string& name, F&& f, ArgsT&&... args);
 
     /**
     @brief constructs an observer to inspect the activities of worker threads
@@ -617,7 +617,7 @@ class TF_API Executor {
 
     size_t _num_topologies {0};
 
-    std::unordered_map<std::thread::id, size_t> _wids;
+    vstd::HashMap<std::thread::id, size_t> _wids;
     vstd::vector<Worker> _workers;
     vstd::vector<std::thread> _threads;
     std::list<Taskflow> _taskflows;
@@ -684,7 +684,7 @@ class TF_API Executor {
 TF_API ObjectPool<Node>* get_node_pool();
 // Function: named_async
 template <typename F, typename... ArgsT>
-auto Executor::named_async(const std::string& name, F&& f, ArgsT&&... args) {
+auto Executor::named_async(const string& name, F&& f, ArgsT&&... args) {
 
   _increment_topology();
 
@@ -735,7 +735,7 @@ auto Executor::async(F&& f, ArgsT&&... args) {
 // Function: named_silent_async
 template <typename F, typename... ArgsT>
 void Executor::named_silent_async(
-  const std::string& name, F&& f, ArgsT&&... args
+  const string& name, F&& f, ArgsT&&... args
 ) {
 
   _increment_topology();
@@ -901,7 +901,7 @@ tf::Future<void> Executor::run_until(Taskflow&& f, P&& pred, C&& c) {
 
 // Function: named_async
 template <typename F, typename... ArgsT>
-auto Subflow::named_async(const std::string& name, F&& f, ArgsT&&... args) {
+auto Subflow::named_async(const string& name, F&& f, ArgsT&&... args) {
   return _named_async(
     *_executor._this_worker(), name, std::forward<F>(f), std::forward<ArgsT>(args)...
   );
@@ -911,7 +911,7 @@ auto Subflow::named_async(const std::string& name, F&& f, ArgsT&&... args) {
 template <typename F, typename... ArgsT>
 auto Subflow::_named_async(
   Worker& w,
-  const std::string& name,
+  const string& name,
   F&& f,
   ArgsT&&... args
 ) {
@@ -962,7 +962,7 @@ auto Subflow::async(F&& f, ArgsT&&... args) {
 // Function: _named_silent_async
 template <typename F, typename... ArgsT>
 void Subflow::_named_silent_async(
-  Worker& w, const std::string& name, F&& f, ArgsT&&... args
+  Worker& w, const string& name, F&& f, ArgsT&&... args
 ) {
 
   _parent->_join_counter.fetch_add(1);
@@ -983,7 +983,7 @@ void Subflow::_named_silent_async(
 
 // Function: silent_async
 template <typename F, typename... ArgsT>
-void Subflow::named_silent_async(const std::string& name, F&& f, ArgsT&&... args) {
+void Subflow::named_silent_async(const string& name, F&& f, ArgsT&&... args) {
   _named_silent_async(
     *_executor._this_worker(), name, std::forward<F>(f), std::forward<ArgsT>(args)...
   );

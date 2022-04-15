@@ -32,7 +32,7 @@ class CustomGraphBase {
 
   public:
 
-  virtual void dump(std::ostream&, const void*, const std::string&) const = 0;
+  virtual void dump(std::ostream&, const void*, const string&) const = 0;
   virtual ~CustomGraphBase() = default;
 };
 
@@ -398,11 +398,11 @@ class TF_API Node {
   size_t num_strong_dependents() const;
   size_t num_weak_dependents() const;
 
-  const std::string& name() const;
+  const string& name() const;
 
   private:
 
-  std::string _name;
+  string _name;
 
   void* _data {nullptr};
 

@@ -51,8 +51,6 @@ public:
 		CascadeArgs,
 		CameraArgs>>
 		args;
-	std::atomic_size_t planedTask = 0;
-	std::atomic_size_t executedTask = 0;
 	FrustumCulling(uint threadCount);
 	~FrustumCulling();
 	void Task(size_t i);

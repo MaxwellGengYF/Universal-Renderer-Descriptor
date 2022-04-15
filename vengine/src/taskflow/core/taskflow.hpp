@@ -91,7 +91,7 @@ public:
     std::cout << taskflow.name();         // "My Taskflow"
     @endcode
     */
-	Taskflow(const std::string& name);
+	Taskflow(const string& name);
 
 	/**
     @brief constructs a taskflow
@@ -188,12 +188,12 @@ public:
 	void dump(std::ostream& ostream) const;
 
 	/**
-    @brief dumps the taskflow to a std::string of DOT format
+    @brief dumps the taskflow to a string of DOT format
 
     This method is similar to tf::Taskflow::dump(std::ostream& ostream),
     but returning a string of the graph in DOT format.
     */
-	std::string dump() const;
+	string dump() const;
 
 	/**
     @brief queries the number of tasks
@@ -215,7 +215,7 @@ public:
     taskflow.name("assign another name");
     @endcode
     */
-	void name(const std::string&);
+	void name(const string&);
 
 	/**
     @brief queries the name of the taskflow
@@ -224,7 +224,7 @@ public:
     std::cout << "my name is: " << taskflow.name();
     @endcode
     */
-	const std::string& name() const;
+	const string& name() const;
 
 	/**
     @brief clears the associated task dependency graph
@@ -263,7 +263,7 @@ public:
 private:
 	mutable std::mutex _mutex;
 
-	std::string _name;
+	string _name;
 
 	Graph _graph;
 

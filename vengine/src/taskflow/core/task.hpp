@@ -189,7 +189,7 @@ class TF_API Task {
     /**
     @brief queries the name of the task
     */
-    const std::string& name() const;
+    const string& name() const;
 
     /**
     @brief queries the number of successors of the task
@@ -218,7 +218,7 @@ class TF_API Task {
 
     @return @c *this
     */
-    Task& name(const std::string& name);
+    Task& name(const string& name);
 
     /**
     @brief assigns a callable
@@ -459,7 +459,7 @@ class TF_API TaskView {
     /**
     @brief queries the name of the task
     */
-    const std::string& name() const;
+    const string& name() const;
 
     /**
     @brief queries the number of successors of the task

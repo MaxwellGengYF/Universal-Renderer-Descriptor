@@ -716,8 +716,8 @@ size_t Executor::num_taskflows() const {
 
 // Function: _this_worker
 Worker* Executor::_this_worker() {
-	auto itr = _wids.find(std::this_thread::get_id());
-	return itr == _wids.end() ? nullptr : &_workers[itr->second];
+	auto itr = _wids.Find(std::this_thread::get_id());
+	return (!itr) ? nullptr : &_workers[itr.Value()];
 }
 
 // Procedure: _exploit_task
@@ -808,8 +808,8 @@ explore_task:
 
 // Function: this_worker_id
 int Executor::this_worker_id() const {
-	auto i = _wids.find(std::this_thread::get_id());
-	return i == _wids.end() ? -1 : static_cast<int>(_workers[i->second]._id);
+	auto i = _wids.Find(std::this_thread::get_id());
+	return (!i) ? -1 : static_cast<int>(_workers[i.Value()]._id);
 }
 
 // Procedure: _spawn
@@ -831,7 +831,7 @@ void Executor::_spawn(size_t N) {
 			// enables the mapping
 			{
 				std::scoped_lock lock(mutex);
-				_wids[std::this_thread::get_id()] = w._id;
+				_wids.ForceEmplace(std::this_thread::get_id(), w._id);
 				if (n++; n == num_workers()) {
 					cond.notify_one();
 				}
@@ -931,7 +931,7 @@ void Executor::_explore_task(Worker& w, Node*& t) {
 }
 
 // Constructor
-Taskflow::Taskflow(const std::string& name) : FlowBuilder{_graph},
+Taskflow::Taskflow(const string& name) : FlowBuilder{_graph},
 											  _name{name} {
 }
 
@@ -981,12 +981,12 @@ bool Taskflow::empty() const {
 }
 
 // Function: name
-void Taskflow::name(const std::string& name) {
+void Taskflow::name(const string& name) {
 	_name = name;
 }
 
 // Function: name
-const std::string& Taskflow::name() const {
+const string& Taskflow::name() const {
 	return _name;
 }
 
@@ -996,8 +996,8 @@ Graph& Taskflow::graph() {
 }
 
 // Procedure: dump
-std::string Taskflow::dump() const {
-	std::ostringstream oss;
+string Taskflow::dump() const {
+	ostringstream oss;
 	dump(oss);
 	return oss.str();
 }
@@ -1272,7 +1272,7 @@ size_t Node::num_strong_dependents() const {
 }
 
 // Function: name
-const std::string& Node::name() const {
+const string& Node::name() const {
 	return _name;
 }
 
@@ -1544,8 +1544,8 @@ void TFProfObserver::dump(std::ostream& os) const {
 }
 
 // Function: dump
-std::string TFProfObserver::dump() const {
-	std::ostringstream oss;
+string TFProfObserver::dump() const {
+	ostringstream oss;
 	dump(oss);
 	return oss.str();
 }
@@ -1587,10 +1587,10 @@ void TFProfManager::dump(std::ostream& os) const {
 
 // Destructor
 TFProfManager::~TFProfManager() {
-	std::ofstream ofs(_fpath);
+	std::ofstream ofs(_fpath.c_str());
 	if (ofs) {
 		//// .tfp
-		//if(_fpath.rfind(".tfp") != std::string::npos) {
+		//if(_fpath.rfind(".tfp") != string::npos) {
 		//  ProfileData data;
 		//  data.timelines.reserve(_observers.size());
 		//  for(size_t i=0; i<_observers.size(); ++i) {
@@ -1693,7 +1693,7 @@ bool Task::operator!=(const Task& rhs) const {
 }
 
 // Function: name
-Task& Task::name(const std::string& name) {
+Task& Task::name(const string& name) {
 	_node->_name = name;
 	return *this;
 }
@@ -1728,7 +1728,7 @@ void Task::reset_work() {
 }
 
 // Function: name
-const std::string& Task::name() const {
+const string& Task::name() const {
 	return _node->_name;
 }
 
@@ -1803,7 +1803,7 @@ TaskView::TaskView(const Node& node) : _node{node} {
 }
 
 // Function: name
-const std::string& TaskView::name() const {
+const string& TaskView::name() const {
 	return _node._name;
 }
 
@@ -2095,7 +2095,7 @@ void Notifier::_unpark(Waiter* waiters) {
 
 // constructor
 ChromeObserver::Segment::Segment(
-	const std::string& n, observer_stamp_t b, observer_stamp_t e) : name{n}, beg{b}, end{e} {
+	const string& n, observer_stamp_t b, observer_stamp_t e) : name{n}, beg{b}, end{e} {
 }
 
 // Procedure: set_up
@@ -2190,8 +2190,8 @@ void ChromeObserver::dump(std::ostream& os) const {
 }
 
 // Function: dump
-std::string ChromeObserver::dump() const {
-	std::ostringstream oss;
+string ChromeObserver::dump() const {
+	ostringstream oss;
 	dump(oss);
 	return oss.str();
 }

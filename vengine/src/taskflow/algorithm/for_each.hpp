@@ -17,7 +17,7 @@ Task FlowBuilder::for_each(B beg, E end, C c) {
 
   using B_t = std::decay_t<unwrap_ref_decay_t<B>>;
   using E_t = std::decay_t<unwrap_ref_decay_t<E>>;
-  using namespace std::string_literals;
+  using namespace string_literals;
 
   Task task = emplace([b=beg, e=end, c] (Subflow& sf) mutable {
 
@@ -107,7 +107,7 @@ Task FlowBuilder::for_each(B beg, E end, C c) {
 template <typename B, typename E, typename S, typename C>
 Task FlowBuilder::for_each_index(B beg, E end, S inc, C c){
 
-  using namespace std::string_literals;
+  using namespace string_literals;
 
   using B_t = std::decay_t<unwrap_ref_decay_t<B>>;
   using E_t = std::decay_t<unwrap_ref_decay_t<E>>;

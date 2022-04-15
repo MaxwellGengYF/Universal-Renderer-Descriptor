@@ -979,7 +979,7 @@ public:
 		Doing this results in undefined behavior.
 		*/
 	template<typename F, typename... ArgsT>
-	auto named_async(const std::string& name, F&& f, ArgsT&&... args);
+	auto named_async(const string& name, F&& f, ArgsT&&... args);
 
 	/**
 		@brief similar to tf::Subflow::async but does not return a future object
@@ -1021,7 +1021,7 @@ public:
 		This member function is thread-safe.
 		*/
 	template<typename F, typename... ArgsT>
-	void named_silent_async(const std::string& name, F&& f, ArgsT&&... args);
+	void named_silent_async(const string& name, F&& f, ArgsT&&... args);
 
 	/**
 		@brief returns the executor that runs this subflow
@@ -1037,10 +1037,10 @@ private:
 	Subflow(Executor&, Worker&, Node*, Graph&);
 
 	template<typename F, typename... ArgsT>
-	auto _named_async(Worker& w, const std::string& name, F&& f, ArgsT&&... args);
+	auto _named_async(Worker& w, const string& name, F&& f, ArgsT&&... args);
 
 	template<typename F, typename... ArgsT>
-	void _named_silent_async(Worker& w, const std::string& name, F&& f, ArgsT&&... args);
+	void _named_silent_async(Worker& w, const string& name, F&& f, ArgsT&&... args);
 };
 
 }// namespace tf

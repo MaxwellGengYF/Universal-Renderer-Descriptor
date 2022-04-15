@@ -24,7 +24,7 @@ public:
 	void dump(std::ostream& ostream) const;
 
 private:
-	const std::string _fpath;
+	const string _fpath;
 
 	std::mutex _mutex;
 	vstd::vector<std::shared_ptr<TFProfObserver>> _observers;
@@ -48,7 +48,7 @@ using observer_stamp_t = std::chrono::time_point<std::chrono::steady_clock>;
 */
 struct Segment {
 
-	std::string name;
+	string name;
 	TaskType type;
 
 	observer_stamp_t beg;
@@ -67,7 +67,7 @@ struct Segment {
 	Segment() = default;
 
 	Segment(
-		const std::string& n, TaskType t, observer_stamp_t b, observer_stamp_t e) : name{n}, type{t}, beg{b}, end{e} {
+		const string& n, TaskType t, observer_stamp_t b, observer_stamp_t e) : name{n}, type{t}, beg{b}, end{e} {
 	}
 
 	auto span() const {
@@ -155,7 +155,7 @@ Example usage:
 
 struct MyObserver : public tf::ObserverInterface {
 
-  MyObserver(const std::string& name) {
+  MyObserver(const string& name) {
     std::cout << "constructing observer " << name << '\n';
   }
 
@@ -164,13 +164,13 @@ struct MyObserver : public tf::ObserverInterface {
   }
 
   void on_entry(WorkerView w, tf::TaskView tv) override final {
-    std::ostringstream oss;
+    ostringstream oss;
     oss << "worker " << w.id() << " ready to run " << tv.name() << '\n';
     std::cout << oss.str();
   }
 
   void on_exit(WorkerView w, tf::TaskView tv) override final {
-    std::ostringstream oss;
+    ostringstream oss;
     oss << "worker " << w.id() << " finished running " << tv.name() << '\n';
     std::cout << oss.str();
   }
@@ -257,13 +257,13 @@ class TF_API ChromeObserver : public ObserverInterface {
 	// data structure to record each task execution
 	struct Segment {
 
-		std::string name;
+		string name;
 
 		observer_stamp_t beg;
 		observer_stamp_t end;
 
 		Segment(
-			const std::string& n,
+			const string& n,
 			observer_stamp_t b,
 			observer_stamp_t e);
 	};
@@ -285,7 +285,7 @@ public:
 	/**
     @brief dumps the timelines into a @ChromeTracing format
     */
-	 std::string dump() const;
+	 string dump() const;
 
 	/**
     @brief clears the timeline data
@@ -357,7 +357,7 @@ public:
 	/**
     @brief dumps the timelines into a JSON string
     */
-	std::string dump() const;
+	string dump() const;
 
 	/**
     @brief clears the timeline data
