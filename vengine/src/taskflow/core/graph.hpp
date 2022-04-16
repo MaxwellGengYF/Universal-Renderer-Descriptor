@@ -112,7 +112,7 @@ class TF_API Graph {
 
   private:
 
-    vstd::vector<Node*> _nodes;
+    vector<Node*> _nodes;
 
     void _clear();
     void _clear_detached();
@@ -263,7 +263,7 @@ class TF_API Node {
     template <typename C>
     Static(C&&);
 
-    vstd::function<void()> work;
+    function<void()> work;
   };
 
   // runtime work handle
@@ -272,7 +272,7 @@ class TF_API Node {
     template <typename C>
     Runtime(C&&);
 
-    vstd::function<void(tf::Runtime&)> work;
+    function<void(tf::Runtime&)> work;
   };
 
   // dynamic work handle
@@ -281,7 +281,7 @@ class TF_API Node {
     template <typename C>
     Dynamic(C&&);
 
-    vstd::function<void(Subflow&)> work;
+    function<void(Subflow&)> work;
     Graph subgraph;
   };
 
@@ -291,7 +291,7 @@ class TF_API Node {
     template <typename C>
     Condition(C&&);
 
-    vstd::function<int()> work;
+    function<int()> work;
   };
 
   // multi-condition work handle
@@ -300,7 +300,7 @@ class TF_API Node {
     template <typename C>
     MultiCondition(C&&);
 
-    vstd::function<SmallVector<int>()> work;
+    function<SmallVector<int>()> work;
   };
 
   // module work handle
@@ -318,7 +318,7 @@ class TF_API Node {
     template <typename T>
     Async(T&&, std::shared_ptr<AsyncTopology>);
 
-    vstd::function<void(bool)> work;
+    function<void(bool)> work;
 
     std::shared_ptr<AsyncTopology> topology;
   };
@@ -329,7 +329,7 @@ class TF_API Node {
     template <typename C>
     SilentAsync(C&&);
 
-    vstd::function<void()> work;
+    function<void()> work;
   };
 
   // cudaFlow work handle
@@ -338,7 +338,7 @@ class TF_API Node {
     template <typename C, typename G>
     cudaFlow(C&& c, G&& g);
 
-    vstd::function<void(Executor&, Node*)> work;
+    function<void(Executor&, Node*)> work;
 
     std::unique_ptr<CustomGraphBase> graph;
   };
@@ -349,7 +349,7 @@ class TF_API Node {
     template <typename C, typename G>
     syclFlow(C&& c, G&& g);
 
-    vstd::function<void(Executor&, Node*)> work;
+    function<void(Executor&, Node*)> work;
 
     std::unique_ptr<CustomGraphBase> graph;
   };

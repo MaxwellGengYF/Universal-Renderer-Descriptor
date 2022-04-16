@@ -120,7 +120,7 @@ class TF_API Notifier {
   static const uint64_t kEpochMask = ((1ull << kEpochBits) - 1) << kEpochShift;
   static const uint64_t kEpochInc = 1ull << kEpochShift;
   std::atomic<uint64_t> _state;
-  vstd::vector<Waiter> _waiters;
+  vector<Waiter> _waiters;
 
   void _park(Waiter* w);
 

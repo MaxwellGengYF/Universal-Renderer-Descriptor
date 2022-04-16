@@ -27,7 +27,7 @@ private:
 	const string _fpath;
 
 	std::mutex _mutex;
-	vstd::vector<std::shared_ptr<TFProfObserver>> _observers;
+	vector<std::shared_ptr<TFProfObserver>> _observers;
 
 	TFProfManager();
 
@@ -83,7 +83,7 @@ struct Timeline {
 	size_t uid;
 
 	observer_stamp_t origin;
-	vstd::vector<vstd::vector<vstd::vector<Segment>>> segments;
+	vector<vector<vector<Segment>>> segments;
 
 	Timeline() = default;
 
@@ -109,7 +109,7 @@ struct Timeline {
  */
 struct ProfileData {
 
-	vstd::vector<Timeline> timelines;
+	vector<Timeline> timelines;
 
 	ProfileData() = default;
 
@@ -271,8 +271,8 @@ class TF_API ChromeObserver : public ObserverInterface {
 	// data structure to store the entire execution timeline
 	struct Timeline {
 		observer_stamp_t origin;
-		vstd::vector<vstd::vector<Segment>> segments;
-		vstd::vector<std::stack<observer_stamp_t>> stacks;
+		vector<vector<Segment>> segments;
+		vector<std::stack<observer_stamp_t>> stacks;
 	};
 
 public:
@@ -372,7 +372,7 @@ public:
 private:
 	Timeline _timeline;
 
-	vstd::vector<std::stack<observer_stamp_t>> _stacks;
+	vector<std::stack<observer_stamp_t>> _stacks;
 
 	void set_up(size_t num_workers) override final;
 	void on_entry(WorkerView, TaskView) override final;

@@ -617,9 +617,9 @@ class TF_API Executor {
 
     size_t _num_topologies {0};
 
-    vstd::HashMap<std::thread::id, size_t> _wids;
-    vstd::vector<Worker> _workers;
-    vstd::vector<std::thread> _threads;
+    unordered_map<std::thread::id, size_t> _wids;
+    vector<Worker> _workers;
+    vector<std::thread> _threads;
     std::list<Taskflow> _taskflows;
 
     Notifier _notifier;
@@ -630,7 +630,7 @@ class TF_API Executor {
     std::atomic<size_t> _num_thieves {0};
     std::atomic<bool>   _done {0};
 
-    std::unordered_set<std::shared_ptr<ObserverInterface>> _observers;
+    unordered_set<std::shared_ptr<ObserverInterface>> _observers;
 
     Worker* _this_worker();
 

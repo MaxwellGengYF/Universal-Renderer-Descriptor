@@ -76,7 +76,7 @@ protected:
 
     void *NewElts;
     if (BeginX == FirstEl) {
-      NewElts = vengine_malloc(NewCapacityInBytes);
+      NewElts = tf_malloc(NewCapacityInBytes);
 
       // Copy the elements over.  No need to run dtors on PODs.
       memcpy(NewElts, this->BeginX, CurSizeBytes);
@@ -291,7 +291,7 @@ void SmallVectorTemplateBase<T, isPodLike>::grow(size_t MinSize) {
   size_t NewCapacity = size_t(tf::detail::NextCapacity(CurCapacity+2));
   if (NewCapacity < MinSize)
     NewCapacity = MinSize;
-  T *NewElts = static_cast<T*>(vengine_malloc(NewCapacity*sizeof(T)));
+  T *NewElts = static_cast<T*>(tf_malloc(NewCapacity*sizeof(T)));
 
   // Move the elements over.
   this->uninitialized_move(this->begin(), this->end(), NewElts);
@@ -909,7 +909,7 @@ It contains some number of elements in-place,
 which allows it to avoid heap allocation when the actual number of
 elements is below that threshold. This allows normal @em small cases to be
 fast without losing generality for large inputs.
-All the methods in [vstd::vector](https://en.cppreference.com/w/cpp/container/vector)
+All the methods in [vector](https://en.cppreference.com/w/cpp/container/vector)
 can apply to this class.
 
 The class is stripped from the LLVM codebase.

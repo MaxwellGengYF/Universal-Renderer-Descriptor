@@ -31,7 +31,7 @@ public:
 	/**
 		@brief creates a static task
 
-		@tparam C callable type constructible from vstd::function<void()>
+		@tparam C callable type constructible from function<void()>
 
 		@param callable callable to construct a static task
 
@@ -53,14 +53,13 @@ public:
 		Task emplace_all(C&& callable, size_t task_count, size_t thread_count);
 	template<
 		typename B,
-		typename C,
-		typename D>
-	requires(std::is_invocable_v<C, size_t>&& std::is_invocable_v<B>&& std::is_invocable_v<D>)
-		Task emplace_all(B&& beforeTask, C&& callable, D&& afterTask, size_t task_count, size_t thread_count);
+		typename C>
+	requires(std::is_invocable_v<C, size_t>&& std::is_invocable_v<B>)
+		Task emplace_all(B&& beforeTask, C&& callable, size_t task_count, size_t thread_count);
 	/**
 		@brief creates a dynamic task
 
-		@tparam C callable type constructible from vstd::function<void(tf::Subflow&)>
+		@tparam C callable type constructible from function<void(tf::Subflow&)>
 
 		@param callable callable to construct a dynamic task
 
@@ -85,7 +84,7 @@ public:
 	/**
 		@brief creates a condition task
 
-		@tparam C callable type constructible from vstd::function<int()>
+		@tparam C callable type constructible from function<int()>
 
 		@param callable callable to construct a condition task
 
@@ -119,7 +118,7 @@ public:
 		@brief creates a multi-condition task
 
 		@tparam C callable type constructible from
-						vstd::function<tf::SmallVector<int>()>
+						function<tf::SmallVector<int>()>
 
 		@param callable callable to construct a multi-condition task
 
@@ -282,7 +281,7 @@ public:
 	/**
 		@brief creates a %cudaFlow task on the caller's GPU device context
 
-		@tparam C callable type constructible from @c vstd::function<void(tf::cudaFlow&)>
+		@tparam C callable type constructible from @c function<void(tf::cudaFlow&)>
 
 		@return a tf::Task handle
 
@@ -312,7 +311,7 @@ public:
 	/**
 		@brief creates a %cudaFlow task on the given device
 
-		@tparam C callable type constructible from vstd::function<void(tf::cudaFlow&)>
+		@tparam C callable type constructible from function<void(tf::cudaFlow&)>
 		@tparam D device type, either @c int or @c std::ref<int> (stateful)
 
 		@return a tf::Task handle
@@ -338,7 +337,7 @@ public:
 	/**
 		@brief creates a %syclFlow task on the default queue
 
-		@tparam C callable type constructible from vstd::function<void(tf::syclFlow&)>
+		@tparam C callable type constructible from function<void(tf::syclFlow&)>
 
 		@param callable a callable that takes a referenced tf::syclFlow object
 
@@ -364,7 +363,7 @@ public:
 	/**
 		@brief creates a %syclFlow task on the given queue
 
-		@tparam C callable type constructible from vstd::function<void(tf::syclFlow&)>
+		@tparam C callable type constructible from function<void(tf::syclFlow&)>
 		@tparam Q queue type
 
 		@param callable a callable that takes a referenced tf::syclFlow object
@@ -393,7 +392,7 @@ public:
 	/**
 		@brief creates a runtime task
 
-		@tparam C callable type constructible from vstd::function<void(tf::Runtime&)>
+		@tparam C callable type constructible from function<void(tf::Runtime&)>
 
 		@param callable callable to construct a runtime task
 
@@ -427,12 +426,12 @@ public:
 		tf::Task B = taskflow.emplace([](){ std::cout << "B"; });
 		tf::Task C = taskflow.emplace([](){ std::cout << "C"; });
 		tf::Task D = taskflow.emplace([](){ std::cout << "D"; });
-		vstd::vector<tf::Task> tasks {A, B, C, D}
+		vector<tf::Task> tasks {A, B, C, D}
 		taskflow.linearize(tasks);  // A->B->C->D
 		@endcode
 
 		*/
-	void linearize(vstd::vector<Task>& tasks);
+	void linearize(vector<Task>& tasks);
 
 	/**
 		@brief adds adjacent dependency links to a linear list of tasks

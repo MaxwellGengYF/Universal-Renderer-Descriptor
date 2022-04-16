@@ -140,7 +140,6 @@ VENGINE_UNITY_EXTERN void ExecuteCull() {
 		[](size_t i) {
 			context->Task(i);
 		},
-		[] {},
 		context->args.size(), context->executor.num_workers());
 	context->shadowTask = context->executor.run(std::move(flow));
 }
@@ -174,9 +173,20 @@ VENGINE_UNITY_EXTERN void CullingResult(
 }
 
 }// namespace toolhub::renderer
-//#define EXPORT_EXE
+#define EXPORT_EXE
 #ifdef EXPORT_EXE
+static thread_local double value = 0;
+static std::atomic_size_t i;
 int main() {
+	tf::Executor e(std::thread::hardware_concurrency());
+	tf::Taskflow f;
+	f.emplace_all(
+		[] {},
+		[](size_t i) { value = pow(value + 1e-34, 2.2); },
+		std::numeric_limits<size_t>::max(), e.num_workers());
+	e.run(std::move(f)).wait();
+	std::cout << i << '\n';
+	return 0;
 
 	using namespace toolhub::renderer;
 	while (true) {
@@ -215,7 +225,7 @@ int main() {
 			csmArg,
 			cascades.data(),
 			cascades.size());
-		while (true) {
+		for (int i = 0; i < 10240; ++i) {
 			ExecuteCull();
 			CompleteCull();
 			uint* arr;

@@ -16,19 +16,18 @@ requires(std::is_invocable_v<C, size_t>)
 					f.emplace([task] { task(); });
 				}
 			}
-			f.emplace([t = std::move(task)] { t(); });
-			f.join();
+			f.detach();
+			task();
 		});
 	return {};
 }
 template<
 	typename B,
-	typename C,
-	typename D>
-requires(std::is_invocable_v<C, size_t>&& std::is_invocable_v<B>&& std::is_invocable_v<D>)
-	Task FlowBuilder::emplace_all(B&& beforeTask, C&& callable, D&& afterTask, size_t task_count, size_t thread_count) {
+	typename C>
+requires(std::is_invocable_v<C, size_t>&& std::is_invocable_v<B>)
+	Task FlowBuilder::emplace_all(B&& beforeTask, C&& callable, size_t task_count, size_t thread_count) {
 	if (thread_count > 0)
-		return emplace([b = std::forward<B>(beforeTask), c = std::forward<C>(callable), d = std::forward<D>(afterTask), task_count, thread_count](tf::Subflow& f) mutable {
+		return emplace([b = std::forward<B>(beforeTask), c = std::forward<C>(callable), task_count, thread_count](tf::Subflow& f) mutable {
 			b();
 			vstd::ParallelTask task(std::move(c), task_count);
 			if (thread_count > 1) {
@@ -37,9 +36,8 @@ requires(std::is_invocable_v<C, size_t>&& std::is_invocable_v<B>&& std::is_invoc
 					f.emplace([task] { task(); });
 				}
 			}
-			f.emplace([t = std::move(task)] { t(); });
-			f.join();
-			d();
+			f.detach();
+			task();
 		});
 	return {};
 }

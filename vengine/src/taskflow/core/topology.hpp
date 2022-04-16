@@ -45,8 +45,8 @@ class Topology : public TopologyBase {
 
     SmallVector<Node*> _sources;
 
-    vstd::function<bool()> _pred;
-    vstd::function<void()> _call;
+    function<bool()> _pred;
+    function<void()> _call;
 
     std::atomic<size_t> _join_counter {0};
 };

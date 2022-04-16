@@ -1,12 +1,27 @@
+-- Abseil
+IncludePaths = {"./", "abseil"}
+BuildProject({
+    projectName = "Abseil",
+    projectType = "shared",
+    macros = {"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX", "ABSL_BUILD_DLL"},
+    debugMacros = {"_DEBUG"},
+    releaseMacros = {"NDEBUG"},
+    files = {"abseil/absl/**.cc"},
+    includePaths = IncludePaths,
+    debugException = true,
+    releaseException = true
+})
+
 -- VEngine_DLL
 BuildProject({
     projectName = "VEngine_DLL",
     projectType = "shared",
-    macros = {"COMMON_DLL_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS"},
+    macros = {"COMMON_DLL_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
     debugMacros = {"_DEBUG"},
     releaseMacros = {"NDEBUG"},
     files = {"Common/*.cpp", "Utility/*.cpp", "taskflow/src.cpp"},
-    includePaths = {"./"},
+    includePaths = IncludePaths,
+    depends = {"Abseil"},
     unityBuildBatch = 4,
     debugException = true,
     releaseException = true
@@ -14,15 +29,16 @@ BuildProject({
 if is_plat("windows") then
     add_links("kernel32", "User32", "Gdi32", "Shell32")
 end
+
 -- VEngine_Database
 BuildProject({
     projectName = "VEngine_Database",
     projectType = "shared",
-    macros = {"VENGINE_DATABASE_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS"},
+    macros = {"VENGINE_DATABASE_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
     debugMacros = {"_DEBUG"},
     releaseMacros = {"NDEBUG"},
     files = {"Database/*.cpp"},
-    includePaths = {"./"},
+    includePaths = IncludePaths,
     depends = {"VEngine_DLL"},
     debugException = true,
     releaseException = true
@@ -31,11 +47,11 @@ BuildProject({
 BuildProject({
     projectName = "VEngine_Graphics",
     projectType = "shared",
-    macros = {"VENGINE_GRAPHICS_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS"},
+    macros = {"VENGINE_GRAPHICS_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
     debugMacros = {"_DEBUG"},
     releaseMacros = {"NDEBUG"},
     files = {"Graphics/**.cpp", "stb/*.cpp"},
-    includePaths = {"./"},
+    includePaths = IncludePaths,
     depends = {"VEngine_DLL"},
     unityBuildBatch = 4,
     debugException = true,
@@ -46,11 +62,11 @@ add_links("lib/dxcompiler")
 BuildProject({
     projectName = "VEngine_DirectX",
     projectType = "shared",
-    macros = {"VENGINE_DIRECTX_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS"},
+    macros = {"VENGINE_DIRECTX_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
     debugMacros = {"_DEBUG"},
     releaseMacros = {"NDEBUG"},
     files = {"DirectX/**.cpp"},
-    includePaths = {"./"},
+    includePaths = IncludePaths,
     depends = {"VEngine_Graphics"},
     unityBuildBatch = 4,
     debugException = true,
@@ -63,11 +79,11 @@ end
 BuildProject({
     projectName = "VEngine_IR",
     projectType = "shared",
-    macros = {"VENGINE_IR_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS"},
+    macros = {"VENGINE_IR_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
     debugMacros = {"_DEBUG"},
     releaseMacros = {"NDEBUG"},
     files = {"ir/*.cpp"},
-    includePaths = {"./"},
+    includePaths = IncludePaths,
     depends = {"VEngine_DLL"},
     debugException = true,
     releaseException = true
@@ -77,7 +93,7 @@ BuildProject({
 BuildProject({
     projectName = "VEngine_Vulkan",
     projectType = "shared",
-    macros = {"VENGINE_VULKAN_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS"},
+    macros = {"VENGINE_VULKAN_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
     debugMacros = {"_DEBUG"},
     releaseMacros = {"NDEBUG"},
     files = {"VulkanImpl/*.cpp"},
@@ -97,9 +113,9 @@ BuildProject({
     projectType = "binary",
     debugMacros = {"_DEBUG"},
     releaseMacros = {"NDEBUG"},
-    macros = {"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS"},
+    macros = {"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
     files = {"CPPBuilder/FileRefresher.cpp"},
-    includePaths = {"./"},
+    includePaths = IncludePaths,
     depends = {"VEngine_DLL"},
     debugException = true,
     releaseException = true
@@ -112,15 +128,16 @@ after_build(function(target)
     os.cp("bin/*.dll", build_path)
 end)
 ]]
+
 -- FrustumCulling
 BuildProject({
     projectName = "FrustumCulling",
-    projectType = "shared",
-    macros = {"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS"},
+    projectType = "binary",
+    macros = {"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
     debugMacros = {"_DEBUG"},
     releaseMacros = {"NDEBUG"},
     files = {"Renderer/*.cpp"},
-    includePaths = {"./"},
+    includePaths = IncludePaths,
     depends = {"VEngine_DLL"},
     debugException = true,
     releaseException = true
@@ -132,7 +149,6 @@ after_build(function(target)
     end
     build_path = "$(buildir)/windows/x64/release/"
     os.cp("bin/*.dll", build_path)
-    --os.cp(build_path .. "FrustumCulling.dll", "D:/UnityProject/Assets/Plugins")
-    --os.cp(build_path .. "VEngine_DLL.dll", "D:/UnityProject/Assets/Plugins")
+    -- os.cp(build_path .. "FrustumCulling.dll", "D:/UnityProject/Assets/Plugins")
+    -- os.cp(build_path .. "VEngine_DLL.dll", "D:/UnityProject/Assets/Plugins")
 end)
-

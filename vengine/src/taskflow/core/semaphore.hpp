@@ -41,7 +41,7 @@ tf::Taskflow taskflow;
 
 tf::Semaphore semaphore(1); // create a semaphore with initial count 1
 
-vstd::vector<tf::Task> tasks {
+vector<tf::Task> tasks {
   taskflow.emplace([](){ std::cout << "A" << std::endl; }),
   taskflow.emplace([](){ std::cout << "B" << std::endl; }),
   taskflow.emplace([](){ std::cout << "C" << std::endl; }),
@@ -93,11 +93,11 @@ private:
 
 	size_t _counter;
 
-	vstd::vector<Node*> _waiters;
+	vector<Node*> _waiters;
 
 	bool _try_acquire_or_wait(Node*);
 
-	vstd::vector<Node*> _release();
+	vector<Node*> _release();
 };
 
 }// namespace tf

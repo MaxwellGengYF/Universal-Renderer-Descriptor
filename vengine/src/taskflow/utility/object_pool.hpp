@@ -155,7 +155,7 @@ private:
 
 	GlobalHeap _gheap;
 
-	vstd::vector<LocalHeap> _lheaps;
+	vector<LocalHeap> _lheaps;
 
 	LocalHeap& _this_heap();
 
@@ -614,7 +614,7 @@ T* ObjectPool<T, S>::animate(ArgsT&&... args) {
 			//printf("create a new superblock\n");
 			_gheap.mutex.unlock();
 			f = 0;
-			//s = static_cast<Block*>(vengine_malloc(sizeof(Block)));
+			//s = static_cast<Block*>(tf_malloc(sizeof(Block)));
 			s = alloc_block();
 
 			if (s == nullptr) {

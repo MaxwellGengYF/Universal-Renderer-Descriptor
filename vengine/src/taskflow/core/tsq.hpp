@@ -71,7 +71,7 @@ class TaskQueue {
   alignas(2*TF_CACHELINE_SIZE) std::atomic<int64_t> _top;
   alignas(2*TF_CACHELINE_SIZE) std::atomic<int64_t> _bottom;
   std::atomic<Array*> _array;
-  vstd::vector<Array*> _garbage;
+  vector<Array*> _garbage;
 
   //std::atomic<T> _cache {nullptr};
 

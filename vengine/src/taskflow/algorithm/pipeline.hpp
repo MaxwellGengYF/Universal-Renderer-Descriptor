@@ -132,7 +132,7 @@ Pipe{PipeType::SERIAL, [](tf::Pipeflow&){}}
 The pipeflow object is used to query the statistics of a scheduling token
 in the pipeline, such as pipe, line, and token numbers.
 */
-template <typename C = vstd::function<void(tf::Pipeflow&)>>
+template <typename C = function<void(tf::Pipeflow&)>>
 class Pipe {
 
   template <typename... Ps>
@@ -196,7 +196,7 @@ class Pipe {
   @brief assigns a new callable to the pipe
 
   @tparam U callable type
-  @param callable a callable object constructible from vstd::function<void(tf::Pipeflow&)>
+  @param callable a callable object constructible from function<void(tf::Pipeflow&)>
 
   Assigns a new callable to the pipe with universal forwarding.
   */
@@ -406,9 +406,9 @@ class Pipeline {
 
   std::tuple<Ps...> _pipes;
   std::array<PipeMeta, sizeof...(Ps)> _meta;
-  vstd::vector<std::array<Line, sizeof...(Ps)>> _lines;
-  vstd::vector<Task> _tasks;
-  vstd::vector<Pipeflow> _pipeflows;
+  vector<std::array<Line, sizeof...(Ps)>> _lines;
+  vector<Task> _tasks;
+  vector<Pipeflow> _pipeflows;
 
   template <size_t... I>
   auto _gen_meta(std::tuple<Ps...>&&, std::index_sequence<I...>);
@@ -686,7 +686,7 @@ auto pipe_callable = [&buffer] (tf::Pipeflow& pf) mutable {
 };
 
 // create a vector of three pipes
-vstd::vector< tf::Pipe<vstd::function<void(tf::Pipeflow&)>> > pipes;
+vector< tf::Pipe<function<void(tf::Pipeflow&)>> > pipes;
 
 for(size_t i=0; i<3; i++) {
   pipes.emplace_back(tf::PipeType::SERIAL, pipe_callable);
@@ -753,7 +753,7 @@ v    v    v    v    v
 o -> o -> o -> o -> o
 @endcode
 
-Each pipe has the same type of `%tf::Pipe<%vstd::function<void(%tf::Pipeflow&)>>`
+Each pipe has the same type of `%tf::Pipe<%function<void(%tf::Pipeflow&)>>`
 and is kept in a vector that is amenable to change.
 We construct the scalable pipeline using two range iterators pointing to the
 beginning and the end of the vector.
@@ -928,9 +928,9 @@ class ScalablePipeline {
 
   size_t _num_tokens{0};
 
-  vstd::vector<P> _pipes;
-  vstd::vector<Task> _tasks;
-  vstd::vector<Pipeflow> _pipeflows;
+  vector<P> _pipes;
+  vector<Task> _tasks;
+  vector<Pipeflow> _pipeflows;
   std::unique_ptr<Line[]> _lines;
 
   void _on_pipe(Pipeflow&, Runtime&);

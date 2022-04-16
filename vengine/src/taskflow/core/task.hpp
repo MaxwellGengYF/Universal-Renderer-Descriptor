@@ -68,7 +68,7 @@ inline constexpr std::array<TaskType, 10> TASK_TYPES = {
 /**
 @brief determines if a callable is a static task
 
-A static task is a callable object constructible from vstd::function<void()>.
+A static task is a callable object constructible from function<void()>.
 */
 template <typename C>
 constexpr bool is_static_task_v =
@@ -79,7 +79,7 @@ constexpr bool is_static_task_v =
 /**
 @brief determines if a callable is a dynamic task
 
-A dynamic task is a callable object constructible from vstd::function<void(Subflow&)>.
+A dynamic task is a callable object constructible from function<void(Subflow&)>.
 */
 template <typename C>
 constexpr bool is_dynamic_task_v = std::is_invocable_r_v<void, C, Subflow&>;
@@ -87,7 +87,7 @@ constexpr bool is_dynamic_task_v = std::is_invocable_r_v<void, C, Subflow&>;
 /**
 @brief determines if a callable is a condition task
 
-A condition task is a callable object constructible from vstd::function<int()>.
+A condition task is a callable object constructible from function<int()>.
 */
 template <typename C>
 constexpr bool is_condition_task_v = std::is_invocable_r_v<int, C>;
@@ -96,7 +96,7 @@ constexpr bool is_condition_task_v = std::is_invocable_r_v<int, C>;
 @brief determines if a callable is a multi-condition task
 
 A multi-condition task is a callable object constructible from
-vstd::function<tf::SmallVector<int>()>.
+function<tf::SmallVector<int>()>.
 */
 template <typename C>
 constexpr bool is_multi_condition_task_v =
@@ -106,7 +106,7 @@ constexpr bool is_multi_condition_task_v =
 @brief determines if a callable is a %cudaFlow task
 
 A cudaFlow task is a callable object constructible from
-vstd::function<void(tf::cudaFlow&)> or vstd::function<void(tf::cudaFlowCapturer&)>.
+function<void(tf::cudaFlow&)> or function<void(tf::cudaFlowCapturer&)>.
 */
 template <typename C>
 constexpr bool is_cudaflow_task_v = std::is_invocable_r_v<void, C, cudaFlow&> ||
@@ -116,7 +116,7 @@ constexpr bool is_cudaflow_task_v = std::is_invocable_r_v<void, C, cudaFlow&> ||
 @brief determines if a callable is a %syclFlow task
 
 A syclFlow task is a callable object constructible from
-vstd::function<void(tf::syclFlow&)>.
+function<void(tf::syclFlow&)>.
 */
 template <typename C>
 constexpr bool is_syclflow_task_v = std::is_invocable_r_v<void, C, syclFlow&>;
@@ -125,7 +125,7 @@ constexpr bool is_syclflow_task_v = std::is_invocable_r_v<void, C, syclFlow&>;
 @brief determines if a callable is a runtime task
 
 A runtime task is a callable object constructible from
-vstd::function<void(tf::Runtime&)>.
+function<void(tf::Runtime&)>.
 */
 template <typename C>
 constexpr bool is_runtime_task_v = std::is_invocable_r_v<void, C, Runtime&>;

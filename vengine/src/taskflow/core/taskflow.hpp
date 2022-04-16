@@ -1,5 +1,5 @@
 #pragma once
-
+#include "../config.h"
 #include "flow_builder.hpp"
 
 /**
@@ -21,21 +21,21 @@ callable object (e.g., @std_lambda, @std_function) and an edge represents a
 dependency between two tasks. A task is one of the following types:
 
   1. static task         : the callable constructible from
-                           @c vstd::function<void()>
+                           @c function<void()>
   2. dynamic task        : the callable constructible from
-                           @c vstd::function<void(tf::Subflow&)>
+                           @c function<void(tf::Subflow&)>
   3. condition task      : the callable constructible from
-                           @c vstd::function<int()>
+                           @c function<int()>
   4. multi-condition task: the callable constructible from
-                           @c %vstd::function<tf::SmallVector<int>()>
+                           @c %function<tf::SmallVector<int>()>
   5. module task         : the task constructed from tf::Taskflow::composed_of
   6. runtime task        : the callable constructible from
-                           @c vstd::function<void(tf::Runtime&)>
+                           @c function<void(tf::Runtime&)>
   7. %cudaFlow task      : the callable constructible from
-                           @c vstd::function<void(tf::cudaFlow&)> or
-                           @c vstd::function<void(tf::cudaFlowCapturer&)>
+                           @c function<void(tf::cudaFlow&)> or
+                           @c function<void(tf::cudaFlowCapturer&)>
   8. %syclFlow task      : the callable constructible from
-                           @c vstd::function<void(tf::syclFlow&)>
+                           @c function<void(tf::syclFlow&)>
 
 Each task is a basic computation unit and is run by one worker thread
 from an executor.
@@ -78,8 +78,8 @@ class TF_API Taskflow : public FlowBuilder {
 
 	struct Dumper {
 		size_t id;
-		vstd::vector<std::pair<const Node*, const Graph*>> stack;
-		vstd::HashMap<const Graph*, size_t> visited;
+		vector<std::pair<const Node*, const Graph*>> stack;
+		unordered_map<const Graph*, size_t> visited;
 	};
 
 public:

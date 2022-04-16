@@ -10,7 +10,7 @@ mat4 GetCSMTransformMat(const vec3& right, const vec3& up, const vec3& forward, 
 	target[3] = vec4(position, 1);
 	return target;
 }
-static constexpr size_t DIR_COUNT = 4;
+static constexpr size_t DIR_COUNT = 5;
 static std::array<vec3, DIR_COUNT> GetFrustumRay(
 	vec3 const& right,
 	vec3 const& up,
@@ -25,7 +25,24 @@ static std::array<vec3, DIR_COUNT> GetFrustumRay(
 		normalize(forward - upDir - rightDir),
 		normalize(forward + upDir - rightDir),
 		normalize(forward - upDir + rightDir),
-		normalize(forward + upDir + rightDir)};
+		normalize(forward + upDir + rightDir),
+		forward};
+}
+struct Bounds{
+	vec3 center;
+	float size;
+};
+static std::pair<vec3, vec3> GetBounding(
+	mat4 const& sunWtL,
+	std::array<vec3, DIR_COUNT> const& dirs,
+	vec3 const& camPos) {
+		vec3 minPos(std::numeric_limits<float>::max());
+		vec3 maxPos(std::numeric_limits<float>::min());
+		for(auto&& i : dirs){
+			auto p = vec3(sunWtL * vec4(camPos, 1));
+			minPos = min(minPos, p);
+			maxPos = max(maxPos, p);
+		}
 }
 static vec4 GetCascadeSphere(
 	vec3 pos,
@@ -47,6 +64,7 @@ static vec4 GetCascadeSphere(
 	}
 	return vec4(center, dist);
 }
+
 void GetCascadeShadowmapMatrices(
 	vec3 const& sunRight,
 	vec3 const& sunUp,
