@@ -511,14 +511,14 @@ void Executor::_cancel_invoke(Worker& worker, Node* node) {
 // Procedure: _observer_prologue
 void Executor::_observer_prologue(Worker& worker, Node* node) {
 	for (auto& observer : _observers) {
-		observer->on_entry(WorkerView(worker), TaskView(*node));
+		observer.first->on_entry(WorkerView(worker), TaskView(*node));
 	}
 }
 
 // Procedure: _observer_epilogue
 void Executor::_observer_epilogue(Worker& worker, Node* node) {
 	for (auto& observer : _observers) {
-		observer->on_exit(WorkerView(worker), TaskView(*node));
+		observer.first->on_exit(WorkerView(worker), TaskView(*node));
 	}
 }
 
@@ -716,8 +716,8 @@ size_t Executor::num_taskflows() const {
 
 // Function: _this_worker
 Worker* Executor::_this_worker() {
-	auto itr = _wids.find(std::this_thread::get_id());
-	return (itr == _wids.end()) ? nullptr : &_workers[itr->second];
+	auto itr = _wids.Find(std::this_thread::get_id());
+	return (!itr) ? nullptr : &_workers[itr.Value()];
 }
 
 // Procedure: _exploit_task
@@ -808,8 +808,8 @@ explore_task:
 
 // Function: this_worker_id
 int Executor::this_worker_id() const {
-	auto i = _wids.find(std::this_thread::get_id());
-	return (i == _wids.end()) ? -1 : static_cast<int>(_workers[i->second]._id);
+	auto i = _wids.Find(std::this_thread::get_id());
+	return (!i) ? -1 : static_cast<int>(_workers[i.Value()]._id);
 }
 
 // Procedure: _spawn
@@ -831,7 +831,7 @@ void Executor::_spawn(size_t N) {
 			// enables the mapping
 			{
 				std::scoped_lock lock(mutex);
-				_wids[std::this_thread::get_id()] = w._id;
+				_wids.ForceEmplace(std::this_thread::get_id(), w._id);
 				if (n++; n == num_workers()) {
 					cond.notify_one();
 				}
@@ -1016,7 +1016,7 @@ void Taskflow::_dump(std::ostream& os, const Graph* top) const {
 
 	dumper.id = 0;
 	dumper.stack.push_back({nullptr, top});
-	dumper.visited[top] = dumper.id++;
+	dumper.visited.ForceEmplace(top, dumper.id++);
 
 	while (!dumper.stack.empty()) {
 
@@ -1026,7 +1026,7 @@ void Taskflow::_dump(std::ostream& os, const Graph* top) const {
 
 		// n-level module
 		if (p) {
-			os << 'm' << dumper.visited[f];
+			os << 'm' << dumper.visited.Find(f).Value();
 		}
 		// top-level taskflow graph
 		else {
@@ -1150,14 +1150,14 @@ void Taskflow::_dump(
 			if (n->_name.empty()) os << 'p' << n;
 			else
 				os << n->_name;
-			auto ite = dumper.visited.emplace(
+			auto ite = dumper.visited.Emplace(
 				module,
 				vstd::MakeLazyEval([&] {
 					dumper.stack.push_back({n, module});
 					return dumper.id++;
 				}));
 
-			os << " [m" << ite.second << "]\"];\n";
+			os << " [m" << ite.Value() << "]\"];\n";
 
 			for (const auto s : n->_successors) {
 				os << 'p' << n << "->" << 'p' << s << ";\n";

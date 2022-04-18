@@ -18,7 +18,7 @@
 //
 #ifndef ABSL_HASH_INTERNAL_HASH_H_
 #define ABSL_HASH_INTERNAL_HASH_H_
-
+/*
 #include <algorithm>
 #include <array>
 #include <bitset>
@@ -41,7 +41,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
+*/
 #include "absl/base/config.h"
 #include "absl/base/internal/unaligned_access.h"
 #include "absl/base/port.h"
@@ -554,7 +554,7 @@ typename std::enable_if<is_hashable<T>::value, H>::type AbslHashValue(
   return H::combine_contiguous(std::move(hash_state), array.data(),
                                array.size());
 }
-
+/*
 // AbslHashValue for hashing std::deque
 template <typename H, typename T, typename Allocator>
 typename std::enable_if<is_hashable<T>::value, H>::type AbslHashValue(
@@ -578,7 +578,7 @@ typename std::enable_if<is_hashable<T>::value, H>::type AbslHashValue(
   }
   return H::combine(std::move(hash_state), size);
 }
-
+*/
 // AbslHashValue for hashing std::list
 template <typename H, typename T, typename Allocator>
 typename std::enable_if<is_hashable<T>::value, H>::type AbslHashValue(
@@ -644,7 +644,7 @@ AbslHashValue(H hash_state, const std::vector<T, Allocator>& vector) {
 // -----------------------------------------------------------------------------
 // AbslHashValue for Ordered Associative Containers
 // -----------------------------------------------------------------------------
-
+/*
 // AbslHashValue for hashing std::map
 template <typename H, typename Key, typename T, typename Compare,
           typename Allocator>
@@ -689,11 +689,12 @@ typename std::enable_if<is_hashable<Key>::value, H>::type AbslHashValue(
   }
   return H::combine(std::move(hash_state), set.size());
 }
-
+*/
 // -----------------------------------------------------------------------------
 // AbslHashValue for Unordered Associative Containers
 // -----------------------------------------------------------------------------
 
+/*
 // AbslHashValue for hashing std::unordered_set
 template <typename H, typename Key, typename Hash, typename KeyEqual,
           typename Alloc>
@@ -714,6 +715,7 @@ typename std::enable_if<is_hashable<Key>::value, H>::type AbslHashValue(
       H::combine_unordered(std::move(hash_state), s.begin(), s.end()),
       s.size());
 }
+*/
 
 // AbslHashValue for hashing std::unordered_set
 template <typename H, typename Key, typename T, typename Hash,

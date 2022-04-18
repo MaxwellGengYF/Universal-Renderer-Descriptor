@@ -3,7 +3,6 @@
 #include <Renderer/FrustumCulling.h>
 #include <Utility/MathLib.h>
 #include <taskflow/taskflow.hpp>
-#include <utility/parallel_task.h>
 static_assert(sizeof(vec3) == 12 && alignof(vec3) == 4);
 static_assert(sizeof(vec4) == 16 && alignof(vec4) == 4);
 static_assert(sizeof(vec2) == 8 && alignof(vec4) == 4);
@@ -76,6 +75,7 @@ void FrustumCulling::CullCSM(CSMArgs const& args, vstd::span<ShadowmapData> casc
 			frustumMin = min(frustumMin, i);
 			frustumMax = max(frustumMax, i);
 		}
+		camVec[i].clear();
 		MathLib::GetOrthoCamFrustumPlanes(
 			args.sunRight,
 			args.sunUp,

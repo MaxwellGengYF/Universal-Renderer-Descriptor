@@ -617,7 +617,7 @@ class TF_API Executor {
 
     size_t _num_topologies {0};
 
-    unordered_map<std::thread::id, size_t> _wids;
+    vstd::HashMap<std::thread::id, size_t> _wids;
     vector<Worker> _workers;
     vector<std::thread> _threads;
     std::list<Taskflow> _taskflows;
@@ -630,7 +630,7 @@ class TF_API Executor {
     std::atomic<size_t> _num_thieves {0};
     std::atomic<bool>   _done {0};
 
-    unordered_set<std::shared_ptr<ObserverInterface>> _observers;
+    vstd::HashMap<std::shared_ptr<ObserverInterface>> _observers;
 
     Worker* _this_worker();
 
@@ -778,7 +778,7 @@ std::shared_ptr<Observer> Executor::make_observer(ArgsT&&... args) {
 
   ptr->set_up(_workers.size());
 
-  _observers.emplace(std::static_pointer_cast<ObserverInterface>(ptr));
+  _observers.ForceEmplace(std::static_pointer_cast<ObserverInterface>(ptr));
 
   return ptr;
 }
@@ -792,7 +792,7 @@ void Executor::remove_observer(std::shared_ptr<Observer> ptr) {
     "Observer must be derived from ObserverInterface"
   );
 
-  _observers.erase(std::static_pointer_cast<ObserverInterface>(ptr));
+  _observers.Remove(std::static_pointer_cast<ObserverInterface>(ptr));
 }
 
 

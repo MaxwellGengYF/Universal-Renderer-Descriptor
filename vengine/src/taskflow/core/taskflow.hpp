@@ -79,7 +79,7 @@ class TF_API Taskflow : public FlowBuilder {
 	struct Dumper {
 		size_t id;
 		vector<std::pair<const Node*, const Graph*>> stack;
-		unordered_map<const Graph*, size_t> visited;
+		vstd::HashMap<const Graph*, size_t> visited;
 	};
 
 public:

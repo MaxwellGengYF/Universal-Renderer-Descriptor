@@ -11,6 +11,32 @@ mat4 GetCSMTransformMat(const vec3& right, const vec3& up, const vec3& forward, 
 	return target;
 }
 static constexpr size_t DIR_COUNT = 5;
+struct LightBBox {
+	vec3 position;
+	float planeSize;
+};
+LightBBox GetFrustumLightBBox(
+	mat4 const& w2l,
+	vstd::span<vec3> frustumPoints) {
+	float maxDist = 0;
+	vec3 minPos(std::numeric_limits<float>::max());
+	vec3 maxPos(std::numeric_limits<float>::min());
+	for (auto start : vstd::range(frustumPoints.size())) {
+		auto&& v = frustumPoints[start];
+		v = w2l * vec4(v, 1);
+		for (auto end : vstd::range(start + 1, frustumPoints.size())) {
+			maxDist = max(maxDist, distance(v, frustumPoints[end]));
+		}
+		minPos = min(minPos, v);
+		maxPos = max(maxPos, v);
+	}
+	vec2 extent(maxPos - minPos);
+	vec2 leftSize = vec2(maxDist) - extent;
+	vec2 xyCenter = vec2(minPos) + maxDist * 0.5f - leftSize * 0.5f;
+	return LightBBox{
+		.position = vec3(xyCenter, maxPos.z),
+		.planeSize = maxDist};
+}
 static std::array<vec3, DIR_COUNT> GetFrustumRay(
 	vec3 const& right,
 	vec3 const& up,
@@ -28,21 +54,17 @@ static std::array<vec3, DIR_COUNT> GetFrustumRay(
 		normalize(forward + upDir + rightDir),
 		forward};
 }
-struct Bounds{
-	vec3 center;
-	float size;
-};
 static std::pair<vec3, vec3> GetBounding(
 	mat4 const& sunWtL,
 	std::array<vec3, DIR_COUNT> const& dirs,
 	vec3 const& camPos) {
-		vec3 minPos(std::numeric_limits<float>::max());
-		vec3 maxPos(std::numeric_limits<float>::min());
-		for(auto&& i : dirs){
-			auto p = vec3(sunWtL * vec4(camPos, 1));
-			minPos = min(minPos, p);
-			maxPos = max(maxPos, p);
-		}
+	vec3 minPos(std::numeric_limits<float>::max());
+	vec3 maxPos(std::numeric_limits<float>::min());
+	for (auto&& i : dirs) {
+		auto p = vec3(sunWtL * vec4(camPos, 1));
+		minPos = min(minPos, p);
+		maxPos = max(maxPos, p);
+	}
 }
 static vec4 GetCascadeSphere(
 	vec3 pos,
@@ -89,6 +111,7 @@ void GetCascadeShadowmapMatrices(
 	for (auto i : vstd::range(results.size())) {
 		auto&& result = results[i];
 		float nearDist;
+		float farDist = result.distance;
 		if (i == 0)
 			nearDist = nearPlane;
 		else
@@ -98,22 +121,29 @@ void GetCascadeShadowmapMatrices(
 			rays,
 			nearDist,
 			result.distance);
+		vec3 frustumPositions[DIR_COUNT * 2];
+		for (auto f : vstd::range(DIR_COUNT)) {
+			frustumPositions[f] = cameraPosition + rays[f] * nearDist;
+			frustumPositions[f + DIR_COUNT] = cameraPosition + rays[f] * farDist;
+		}
+		auto bbox = GetFrustumLightBBox(
+			sunWorldToLocal,
+			vstd::span<vec3>(frustumPositions, vstd::array_count(frustumPositions)));
 		static constexpr bool ENABLE_PIXEL_OFFSET = true;
 
 		if constexpr (ENABLE_PIXEL_OFFSET) {
-			vec3 localPosition = sunWorldToLocal * vec4(vec3(sphere), 1);
+			vec3 localPosition = bbox.position;
 			vec3 positionMovement = localPosition - result.lastPosition;
-			float pixelLength = (sphere.w * 2) / resolution;
+			float pixelLength = bbox.planeSize / resolution;
 			positionMovement = floor(positionMovement / pixelLength) * pixelLength;
 			localPosition = result.lastPosition + positionMovement;
 			vec3 position = (vec3)(sunLocalToWorld * vec4(localPosition, 1));
 			result.lastPosition = localPosition;
 			result.position = position;
 		} else {
-			result.position = sphere;
+			result.position = (sunLocalToWorld * vec4(bbox.position, 1));
 		}
-		result.position += sphere.w * sunForward;
-		result.size = sphere.w;
+		result.size = bbox.planeSize * 0.5f;
 	}
 }
 }// namespace toolhub::renderer
