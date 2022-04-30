@@ -1,6 +1,6 @@
 #pragma once
-#include <ir/var.h>
-#include <ir/statement.h>
+#include <ir/api/var.h>
+#include <ir/api/statement.h>
 namespace luisa::ir {
 class Callable : public Allocatable{
 public:

@@ -17,12 +17,21 @@ struct Cone {
 	}
 };
 class VENGINE_DLL_COMMON MathLib final {
+	template<bool toInside>
+	static bool mBoxIntersect(
+		const mat4& localToWorldMatrix,
+		vec4* planes,
+		const vec3& localPosition,
+		const vec3& localExtent,
+		const vec3& frustumMinPoint,
+		const vec3& frustumMaxPoint) noexcept;
+
 public:
 	MathLib() = delete;
 	~MathLib() = delete;
 	static bool And(bool a, bool b) { return a && b; }
 	static bool Or(bool a, bool b) { return a || b; }
-	template <typename T>
+	template<typename T>
 	static bool Greater(T const& a, T const& b) { return a > b; }
 	template<typename T>
 	static bool GEqual(T const& a, T const& b) { return a >= b; }
@@ -45,6 +54,13 @@ public:
 		const vec3& localPosition,
 		const vec3& localExtent);*/
 	static bool BoxIntersect(
+		const mat4& localToWorldMatrix,
+		vec4* planes,
+		const vec3& localPosition,
+		const vec3& localExtent,
+		const vec3& frustumMinPoint,
+		const vec3& frustumMaxPoint) noexcept;
+	static bool InnerBoxIntersect(
 		const mat4& localToWorldMatrix,
 		vec4* planes,
 		const vec3& localPosition,

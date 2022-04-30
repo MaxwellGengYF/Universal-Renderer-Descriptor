@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <ir/basic_traits.h>
+#include <ir/api/basic_traits.h>
 
 namespace luisa {
 

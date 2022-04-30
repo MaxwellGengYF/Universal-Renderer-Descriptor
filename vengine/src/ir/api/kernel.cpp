@@ -1,5 +1,5 @@
 
-#include <ir/kernel.h>
+#include <ir/api/kernel.h>
 namespace luisa::ir {
 namespace detail {
 class KernelAllocator : public vstd::IOperatorNewBase {

@@ -1,6 +1,8 @@
 BuildBinary = {
     FileRefresher = false,
-    FrustumCulling = true
+    FrustumCulling = false,
+    IR = true,
+    Vulkan = false
 }
 IncludePaths = {"./"}
 -- Abseil
@@ -34,7 +36,20 @@ BuildProject({
 if is_plat("windows") then
     add_links("kernel32", "User32", "Gdi32", "Shell32")
 end
-
+-- VEngine_Compute
+BuildProject({
+    projectName = "VEngine_Compute",
+    projectType = "shared",
+    macros = {"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
+    debugMacros = {"_DEBUG"},
+    releaseMacros = {"NDEBUG"},
+    files = {"Unity/**.cpp"},
+    includePaths = IncludePaths,
+    depends = {"VEngine_DLL"},
+    unityBuildBatch = 4,
+    debugException = true,
+    releaseException = true
+})
 -- VEngine_Database
 BuildProject({
     projectName = "VEngine_Database",
@@ -81,35 +96,39 @@ if is_plat("windows") then
     add_links("DXGI", "D3D12")
 end
 -- VEngine_IR
-BuildProject({
-    projectName = "VEngine_IR",
-    projectType = "shared",
-    macros = {"VENGINE_IR_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
-    debugMacros = {"_DEBUG"},
-    releaseMacros = {"NDEBUG"},
-    files = {"ir/*.cpp"},
-    includePaths = IncludePaths,
-    depends = {"VEngine_DLL"},
-    debugException = true,
-    releaseException = true
+if BuildBinary.IR == true then
+    BuildProject({
+        projectName = "VEngine_IR",
+        projectType = "binary",
+        macros = {"VENGINE_IR_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
+        debugMacros = {"_DEBUG"},
+        releaseMacros = {"NDEBUG"},
+        files = {"ir/**.cpp"},
+        includePaths = IncludePaths,
+        depends = {"VEngine_DLL"},
+        debugException = true,
+        releaseException = true
 
-})
+    })
+end
 -- VEngine_Vulkan
-BuildProject({
-    projectName = "VEngine_Vulkan",
-    projectType = "shared",
-    macros = {"VENGINE_VULKAN_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
-    debugMacros = {"_DEBUG"},
-    releaseMacros = {"NDEBUG"},
-    files = {"VulkanImpl/*.cpp"},
-    includePaths = {"./", "C:/VulkanSDK/1.3.204.0/Include/"},
-    depends = {"VEngine_DLL"},
-    debugException = true,
-    releaseException = true
-})
-add_links("C:/VulkanSDK/1.3.204.0/Lib/vulkan-1", "lib/glfw3dll", "lib/glfw3")
-if is_plat("windows") then
-    add_links("User32", "kernel32", "Gdi32", "Shell32")
+if BuildBinary.Vulkan == true then
+    BuildProject({
+        projectName = "VEngine_Vulkan",
+        projectType = "shared",
+        macros = {"VENGINE_VULKAN_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
+        debugMacros = {"_DEBUG"},
+        releaseMacros = {"NDEBUG"},
+        files = {"VulkanImpl/*.cpp"},
+        includePaths = {"./", "C:/VulkanSDK/1.3.204.0/Include/"},
+        depends = {"VEngine_DLL"},
+        debugException = true,
+        releaseException = true
+    })
+    add_links("C:/VulkanSDK/1.3.204.0/Lib/vulkan-1", "lib/glfw3dll", "lib/glfw3")
+    if is_plat("windows") then
+        add_links("User32", "kernel32", "Gdi32", "Shell32")
+    end
 end
 -- File refresher
 if BuildBinary.FileRefresher == true then
@@ -125,13 +144,6 @@ if BuildBinary.FileRefresher == true then
         debugException = true,
         releaseException = true
     })
-    after_build(function(target)
-        if not is_mode("release") then
-            return
-        end
-        build_path = "$(buildir)/windows/x64/release/"
-        os.cp("bin/*.dll", build_path)
-    end)
 end
 if BuildBinary.FrustumCulling == true then
     -- FrustumCulling
@@ -147,14 +159,14 @@ if BuildBinary.FrustumCulling == true then
         debugException = true,
         releaseException = true
     })
-
-    after_build(function(target)
-        if not is_mode("release") then
-            return
-        end
-        build_path = "$(buildir)/windows/x64/release/"
-        os.cp("bin/*.dll", build_path)
-        -- os.cp(build_path .. "FrustumCulling.dll", "D:/UnityProject/Assets/Plugins")
-        -- os.cp(build_path .. "VEngine_DLL.dll", "D:/UnityProject/Assets/Plugins")
-    end)
 end
+
+after_build(function(target)
+    build_path = nil
+    if is_mode("release") then
+        build_path = "$(buildir)/windows/x64/release/"
+    else
+        build_path = "$(buildir)/windows/x64/debug/"
+    end
+    os.cp("bin/*.dll", build_path)
+end)

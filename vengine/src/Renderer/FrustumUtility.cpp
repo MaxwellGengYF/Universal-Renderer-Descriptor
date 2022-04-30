@@ -17,10 +17,13 @@ struct LightBBox {
 };
 LightBBox GetFrustumLightBBox(
 	mat4 const& w2l,
+	float farDist,
+	std::array<vec3, DIR_COUNT> const& frustumRays,
 	vstd::span<vec3> frustumPoints) {
+	float depthOffset = (1 - dot(frustumRays[0], frustumRays[DIR_COUNT - 1])) * farDist;
 	float maxDist = 0;
-	vec3 minPos(std::numeric_limits<float>::max());
-	vec3 maxPos(std::numeric_limits<float>::min());
+	vec3 minPos(1e7f);
+	vec3 maxPos(-1e7f);
 	for (auto start : vstd::range(frustumPoints.size())) {
 		auto&& v = frustumPoints[start];
 		v = w2l * vec4(v, 1);
@@ -34,7 +37,7 @@ LightBBox GetFrustumLightBBox(
 	vec2 leftSize = vec2(maxDist) - extent;
 	vec2 xyCenter = vec2(minPos) + maxDist * 0.5f - leftSize * 0.5f;
 	return LightBBox{
-		.position = vec3(xyCenter, maxPos.z),
+		.position = vec3(xyCenter, maxPos.z + depthOffset),
 		.planeSize = maxDist};
 }
 static std::array<vec3, DIR_COUNT> GetFrustumRay(
@@ -58,8 +61,8 @@ static std::pair<vec3, vec3> GetBounding(
 	mat4 const& sunWtL,
 	std::array<vec3, DIR_COUNT> const& dirs,
 	vec3 const& camPos) {
-	vec3 minPos(std::numeric_limits<float>::max());
-	vec3 maxPos(std::numeric_limits<float>::min());
+	vec3 minPos(1e7f);
+	vec3 maxPos(-1e7f);
 	for (auto&& i : dirs) {
 		auto p = vec3(sunWtL * vec4(camPos, 1));
 		minPos = min(minPos, p);
@@ -88,24 +91,19 @@ static vec4 GetCascadeSphere(
 }
 
 void GetCascadeShadowmapMatrices(
-	vec3 const& sunRight,
-	vec3 const& sunUp,
-	vec3 const& sunForward,
+	mat4 const& sunLocalToWorld,
 	vec3 const& cameraRight,
 	vec3 const& cameraUp,
 	vec3 const& cameraForward,
 	vec3 const& cameraPosition,
 	float fov,
 	float aspect,
-	float zDepth,
 	float resolution,
 	float nearPlane,
-	vstd::span<FrustumCulling::ShadowmapData> results) {
-	mat4 sunLocalToWorld = GetCSMTransformMat(
-		sunRight,
-		sunUp,
-		sunForward,
-		vec3(0, 0, 0));
+	vstd::span<FrustumCulling::ShadowmapData> results,
+	std::array<vec4, 6>* cameraFrustumPlanes,
+	std::pair<vec3, vec3>* camFrustumMinMax) {
+
 	mat4 sunWorldToLocal = inverse(sunLocalToWorld);
 	auto rays = GetFrustumRay(cameraRight, cameraUp, cameraForward, fov, aspect);
 	for (auto i : vstd::range(results.size())) {
@@ -116,26 +114,52 @@ void GetCascadeShadowmapMatrices(
 			nearDist = nearPlane;
 		else
 			nearDist = results[i - 1].distance;
-		vec4 sphere = GetCascadeSphere(
+		MathLib::GetPerspFrustumPlanes(
+			cameraRight,
+			cameraUp,
+			cameraForward,
+			cameraPosition,
+			fov,
+			aspect,
+			nearDist * (i == 0 ? 1 : tan(fov * 0.5)),
+			farDist,
+			cameraFrustumPlanes[i].data());
+		/*vec4 sphere = GetCascadeSphere(
 			cameraPosition,
 			rays,
 			nearDist,
-			result.distance);
+			result.distance);*/
 		vec3 frustumPositions[DIR_COUNT * 2];
 		for (auto f : vstd::range(DIR_COUNT)) {
 			frustumPositions[f] = cameraPosition + rays[f] * nearDist;
 			frustumPositions[f + DIR_COUNT] = cameraPosition + rays[f] * farDist;
 		}
+		vec3 minPos(1e7f);
+		vec3 maxPos(-1e7f);
+		float frustumNearDist = nearDist * (i == 0 ? 1 : tan(fov * 0.5));
+
+		for (auto f : vstd::range(DIR_COUNT - 1)) {
+			auto pos = cameraPosition + rays[f] * frustumNearDist;
+			minPos = min(minPos, pos);
+			maxPos = max(maxPos, pos);
+			pos = cameraPosition + rays[f] * (farDist / tan(fov * 0.5f));
+			minPos = min(minPos, pos);
+			maxPos = max(maxPos, pos);
+		}
+		camFrustumMinMax[i] = {minPos, maxPos};
 		auto bbox = GetFrustumLightBBox(
 			sunWorldToLocal,
+			farDist,
+			rays,
 			vstd::span<vec3>(frustumPositions, vstd::array_count(frustumPositions)));
+
 		static constexpr bool ENABLE_PIXEL_OFFSET = true;
 
 		if constexpr (ENABLE_PIXEL_OFFSET) {
 			vec3 localPosition = bbox.position;
 			vec3 positionMovement = localPosition - result.lastPosition;
 			float pixelLength = bbox.planeSize / resolution;
-			positionMovement = floor(positionMovement / pixelLength) * pixelLength;
+			positionMovement = floor(positionMovement / pixelLength + 1e-3f) * pixelLength;
 			localPosition = result.lastPosition + positionMovement;
 			vec3 position = (vec3)(sunLocalToWorld * vec4(localPosition, 1));
 			result.lastPosition = localPosition;

@@ -12,5 +12,7 @@
       "-j=13",
       "--pch-storage=memory",
       "--header-insertion=never",
+      "--completion-style=bundled",
+      "--all-scopes-completion=false"
     ]
 }

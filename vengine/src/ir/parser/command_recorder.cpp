@@ -1,7 +1,7 @@
 
 #include "Common/AllocateType.h"
 #include "Common/vector.h"
-#include <ir/command_recorder.h>
+#include <ir/parser/command_recorder.h>
 namespace luisa::ir {
 void CommandRecorder::AddStmt(Statement* stmt) {
 	LastStack()->stmts.emplace_back(stmt);
@@ -41,9 +41,9 @@ Var* CommandRecorder::TryGetVar(vstd::string_view name) const {
 	}
 	auto globalResult = globalVarMap.Find(name);
 	if (globalResult) return globalResult.Value();
+	return nullptr;
 }
 void CommandRecorder::AddVar(Var* var, vstd::string_view name) {
 	(*scopeStack.last())->varMap.Emplace(name, var);
 }
-
 }// namespace luisa::ir

@@ -1,47 +1,106 @@
 
-#include "Common/MetaLib.h"
-#include "Common/span.h"
-#include <ir/statement_name.h>
+#include <ir/parser/statement_name.h>
 #include <Common/functional.h>
-#include <ir/kernel.h>
-#include <ir/var.h>
-#include <ir/statement.h>
-#include <ir/command_recorder.h>
-#include <ir/parser.h>
+#include <ir/api/kernel.h>
+#include <ir/api/var.h>
+#include <ir/api/statement.h>
+#include <ir/parser/command_recorder.h>
+#include <ir/parser/parser.h>
+
 namespace luisa::ir {
 static bool If(StatementName& s, StatementName::FuncCall const& funcPack) {
-	auto&& recorder = s.recorder;
+	auto&& recorder = *s.recorder;
 	auto scope = recorder.PushStack();
 	scope->tag = CommandRecorder::ScopeTag::If;
 	return true;
 }
 static bool EndIf(StatementName& s, StatementName::FuncCall const& funcPack) {
-	auto&& recorder = s.recorder;
+	auto&& recorder = *s.recorder;
 	recorder.PopStack();
 	return true;
 }
+Var const* StatementName::PrepareVar(VarDescriptor const& varDesc) {
+	Var* retVar = nullptr;
+	if (!varDesc.varName.empty()) {
+		retVar = recorder->TryGetVar(varDesc.varName);
+		if (!retVar) {
+			auto newVar = objAlloc->Allocate<VariableVar>();
+			newVar->usage = Usage::ReadWrite;
+			newVar->index = parser->GetVarIndex();
+			auto type = parser->GetType(varDesc.typeDesc.typeName, varDesc.typeDesc.typeArrSize);
+			if(!type) return nullptr;
+			newVar->type = type;
+			recorder->AddVar(newVar, varDesc.varName);
+			retVar = newVar;
+		}
+	}
+	return retVar;
+}
+
 bool StatementName::BuiltInFunc(CallOp callOp, FuncCall const& funcPack) {
-	auto stmt = recorder.objAlloc->Allocate<BuiltinCallStmt>();
-	stmt->dst = {parser->GetType(funcPack.ret.typeName, funcPack.ret.typeArrSize), recorder.TryGetVar(funcPack.ret.varName)};
-	if (!stmt->dst.var) return false;
+	auto stmt = objAlloc->Allocate<BuiltinCallStmt>();
+	stmt->dst = PrepareVar(funcPack.varDesc);
 	auto argSpan =
-		recorder.objAlloc
-			->AllocateSpan<Argument>(
+		objAlloc
+			->AllocateSpan<Var const*>(
 				funcPack.args.size(),
-				[](vstd::span<Argument> sp) {})
+				[](vstd::span<Var const*> sp) {
+					memset(sp.data(), 0, sp.size_bytes());
+				})
 			->span();
 	for (auto i : vstd::range(argSpan.size())) {
 		auto&& argDesc = funcPack.args[i];
-		argSpan[i] = {parser->GetType(argDesc.typeName, argDesc.typeArrSize), recorder.TryGetVar(argDesc.varName)};
+		argSpan[i] = recorder->TryGetVar(argDesc);
 		if (!argSpan[i]) return false;
 	}
 	stmt->args = argSpan;
+	recorder->AddStmt(stmt);
 	return true;
 }
 bool StatementName::BinaryOpCall(BinaryOp op, FuncCall const& funcPack) { return true; }
 bool StatementName::UnaryOpCall(UnaryOp op, FuncCall const& funcPack) { return true; }
-void StatementName::CustomInit() {
+bool StatementName::AddCustomFunc(TypeDescriptor ret, vstd::string_view funcName, vstd::span<TypeDescriptor> args) {
+	Type const* retType = nullptr;
+	if (!ret.typeName.empty())
+		retType = parser->GetType(ret.typeName, ret.typeArrSize);
+	auto ite = customFuncs.Emplace(funcName);
+	auto&& d = ite.Value();
+	d.targetRetType = retType;
+	for (auto&& i : args) {
+		auto argType = parser->GetType(i.typeName, i.typeArrSize);
+		if (!argType) return false;
+		d.argsType.emplace_back(argType);
+	}
+	return true;
 }
+bool StatementName::operator()(vstd::string_view funcName, VarDescriptor const& ret, ArgSpan sp) {
+	auto ite = funcs.Find(funcName);
+	// Built-in
+	if (ite) {
+		auto&& v = ite.Value();
+		return v(*this, FuncCall{ret, sp});
+	}
+	//Try custom
+	auto cusIte = customFuncs.Find(funcName);
+	if (!cusIte) return false;
+	vstd::vector<Var const*> argVars;
+	argVars.reserve(sp.size());
+	for(auto&& i : sp){
+		auto argVar = recorder->TryGetVar(i);
+		if(!argVar) return false;
+		argVars.emplace_back(argVar);
+	}
+	auto retVar = PrepareVar(ret);
+	return ExecuteCustomFunc(cusIte.Value(), argVars, retVar);
+}
+bool StatementName::ExecuteCustomFunc(const CustomFunc &func, vstd::span<const Var *> args, const Var *ret){
+	//TODO
+	return true;
+}
+void StatementName::Clear() {
+	customFuncs.Clear();
+}
+
 // clang-format off
 //Builtin
 static bool Fall(StatementName& s, StatementName::FuncCall const& funcPack) { return s.BuiltInFunc(CallOp::ALL, funcPack); }
@@ -437,7 +496,6 @@ void StatementName::Init() {
 	REGIST_NAME(unaryMap, UnaryOp::MINUS, minus);
 	REGIST_NAME(unaryMap, UnaryOp::NOT, not);
 	REGIST_NAME(unaryMap, UnaryOp::PLUS, plus);
-	CustomInit();
 #undef REGIST_FUNC
 #undef REGIST_NAME
 	// clang-format on

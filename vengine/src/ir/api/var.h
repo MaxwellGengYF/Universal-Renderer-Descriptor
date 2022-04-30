@@ -1,7 +1,7 @@
 #pragma once
 #include <Common/Common.h>
-#include <ir/basic_types.h>>
-#include <ir/allocatable.h>
+#include <ir/api/basic_types.h>
+#include <ir/api/allocatable.h>
 namespace luisa::ir {
 using basic_types = std::tuple<
 	bool, float, int, uint,

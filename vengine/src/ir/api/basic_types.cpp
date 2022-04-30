@@ -4,7 +4,7 @@
 // Created by Mike Smith on 2021/3/14.
 //
 
-#include <ir/basic_types.h>
+#include <ir/api/basic_types.h>
 
 namespace luisa {
 

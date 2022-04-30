@@ -1,5 +1,5 @@
 #pragma once
-#include <ir/kernel.h>
+#include <ir/api/kernel.h>
 #include <bitset>
 #include <Utility/StringUtility.h>
 namespace luisa::ir {

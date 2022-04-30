@@ -70,8 +70,10 @@ vec4 MathLib::GetPlane(
 	vec4 result(normal, dt);
 	return result;
 }
-bool MathLib::BoxIntersect(const mat4& localToWorldmat, vec4* planes, const vec3& position, const vec3& localExtent,
-						   const vec3& frustumminPoint, const vec3& frustummaxPoint) noexcept {
+template<bool toInside>
+static bool MathLib::mBoxIntersect(
+	const mat4& localToWorldmat, vec4* planes, const vec3& position, const vec3& localExtent,
+	const vec3& frustumminPoint, const vec3& frustummaxPoint) noexcept {
 	static const vec3 arrays[8] =
 		{
 			vec3(1, 1, 1),
@@ -96,9 +98,16 @@ bool MathLib::BoxIntersect(const mat4& localToWorldmat, vec4* planes, const vec3
 		a = compareFunc(a, func(vec.z, vec1.z));
 		return a;
 	};
-	if (IteVec(false, Or, Greater<float>, minPos, frustummaxPoint)
-		|| IteVec(false, Or, Less<float>, maxPos, frustumminPoint))
-		return false;
+
+	if constexpr (toInside) {
+		if (IteVec(false, Or, Less<float>, minPos, frustumminPoint)
+			|| IteVec(false, Or, Greater<float>, maxPos, frustummaxPoint))
+			return false;
+	} else {
+		if (IteVec(false, Or, Greater<float>, minPos, frustummaxPoint)
+			|| IteVec(false, Or, Less<float>, maxPos, frustumminPoint))
+			return false;
+	}
 	vec3 pos = static_cast<vec3>(localToWorldmat * vec4(position, 1));
 	mat3 normalLocalMat = transpose((mat3)localToWorldmat);
 	for (uint i = 0; i < 6; ++i) {
@@ -106,9 +115,21 @@ bool MathLib::BoxIntersect(const mat4& localToWorldmat, vec4* planes, const vec3
 		vec3 const& planeXYZ = reinterpret_cast<vec3 const&>(plane);
 		vec3 absNormal = abs(normalLocalMat * planeXYZ);
 		float result = dot(pos, planeXYZ) - dot(absNormal, localExtent);
-		if (result > -plane.w) return false;
+		if constexpr (toInside) {
+			if (result < -plane.w) return false;
+		} else {
+			if (result > -plane.w) return false;
+		}
 	}
 	return true;
+}
+bool MathLib::BoxIntersect(const mat4& localToWorldmat, vec4* planes, const vec3& position, const vec3& localExtent,
+						   const vec3& frustumminPoint, const vec3& frustummaxPoint) noexcept {
+	return mBoxIntersect<false>(localToWorldmat, planes, position, localExtent, frustumminPoint, frustummaxPoint);
+}
+bool MathLib::InnerBoxIntersect(const mat4& localToWorldmat, vec4* planes, const vec3& position, const vec3& localExtent,
+								const vec3& frustumminPoint, const vec3& frustummaxPoint) noexcept {
+	return mBoxIntersect<true>(localToWorldmat, planes, position, localExtent, frustumminPoint, frustummaxPoint);
 }
 void MathLib::GetCameraNearPlanePoints(
 	const vec3& right,

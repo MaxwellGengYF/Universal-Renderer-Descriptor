@@ -1,7 +1,7 @@
 #pragma once
 #include "VEngineConfig.h"
-#include "ir/var.h"
-#include <ir/allocatable.h>
+#include <ir/api/var.h>
+#include <ir/api/allocatable.h>
 #include <Common/Common.h>
 namespace luisa::ir {
 
@@ -170,19 +170,6 @@ enum struct BinaryOp : uint32_t {
 	NOT_EQUAL
 };
 struct Var;
-struct Argument {
-	Type const* type = nullptr;
-	Var const* var = nullptr;
-	Argument(
-		Type const* t,
-		Var const* v)
-		: type(t),
-		  var(v) {}
-	Argument() {}
-	operator bool() const{
-		return var == nullptr || type == nullptr;
-	}
-};
 struct LiteralVar;
 struct Statement : public Allocatable {
 	enum class Tag : uint8_t {
@@ -208,14 +195,14 @@ enum class ReadWrite : bool {
 };
 struct UnaryStmt : public Statement {
 	Var const* dst;
-	Argument lhs;
+	Var const* lhs;
 	UnaryOp op;
 	Tag tag() const override { return Tag::Unary; }
 };
 struct BinaryStmt : public Statement {
 	Var const* dst;
-	Argument lhs;
-	Argument rhs;
+	Var const* lhs;
+	Var const* rhs;
 	BinaryOp op;
 	Tag tag() const override { return Tag::Binary; }
 };
@@ -231,14 +218,14 @@ struct ContinueStmt : public Statement {
 };
 struct BuiltinCallStmt : public Statement {
 	CallOp op;
-	Argument dst;
-	vstd::span<Argument> args;
+	Var const* dst;
+	vstd::span<Var const*> args;
 	Tag tag() const override { return Tag::BuiltinCall; }
 };
 struct CustomCallStmt : public Statement {
-	Argument dst;
+	Var const* dst;
 	uint64 callableIndex;
-	vstd::span<Argument> args;
+	vstd::span<Var const*> args;
 	Tag tag() const override { return Tag::CustomCall; }
 };
 struct MemberStmt : public Statement {

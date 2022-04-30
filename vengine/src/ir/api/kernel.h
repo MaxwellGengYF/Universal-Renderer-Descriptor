@@ -1,5 +1,5 @@
 #pragma once
-#include <ir/callable.h>
+#include <ir/api/callable.h>
 #include <Utility/ObjectStackAlloc.h>
 namespace luisa::ir {
 class Kernel : public vstd::IOperatorNewBase {

@@ -11,19 +11,18 @@ static_assert(sizeof(mat3) == 36 && alignof(mat3) == 4);
 namespace toolhub::renderer {
 mat4 GetCSMTransformMat(const vec3& right, const vec3& up, const vec3& forward, const vec3& position);
 void GetCascadeShadowmapMatrices(
-	vec3 const& sunRight,
-	vec3 const& sunUp,
-	vec3 const& sunForward,
+	mat4 const& sunLocalToWorld,
 	vec3 const& cameraRight,
 	vec3 const& cameraUp,
 	vec3 const& cameraForward,
 	vec3 const& cameraPosition,
 	float fov,
 	float aspect,
-	float zDepth,
 	float resolution,
 	float nearPlane,
-	vstd::span<FrustumCulling::ShadowmapData> results);
+	vstd::span<FrustumCulling::ShadowmapData> results,
+	std::array<vec4, 6>* cameraFrustumPlanes,
+	std::pair<vec3, vec3>* camFrustumMinMax);
 FrustumCulling::FrustumCulling(uint threadCount)
 	: executor(threadCount) {
 }
@@ -41,32 +40,35 @@ void FrustumCulling::CullCamera(CameraArgs const& args) {
 void FrustumCulling::CullCSM(CSMArgs const& args, vstd::span<ShadowmapData> cascades, size_t camCount) {
 	auto&& camVec = cullResults[camCount];
 	camVec.resize(max(camVec.size(), cascades.size()));
+	vstd::vector<std::pair<vec3, vec3>> camFrustumMinMax(cascades.size());
+	vstd::vector<std::array<vec4, 6>> camFrustumPlanes(cascades.size());
+	static_assert(sizeof(decltype(camFrustumPlanes)::value_type) == sizeof(vec4) * 6);
 	GetCascadeShadowmapMatrices(
-		args.sunRight,
-		args.sunUp,
-		args.sunForward,
+		sunLocalToWorld,
 		args.cameraRight,
 		args.cameraUp,
 		args.cameraForward,
 		args.cameraPosition,
 		args.fov,
 		args.aspect,
-		args.zDepth,
 		args.resolution,
 		args.nearPlane,
-		cascades);
+		cascades,
+		camFrustumPlanes.data(),
+		camFrustumMinMax.data());
+
 	vec3 frustumPoints[8];
 	vec4 frustumPlanes[6];
 	for (auto i : vstd::range(cascades.size())) {
 		auto&& data = cascades[i];
 		MathLib::GetOrthoCamFrustumPoints(
-			args.sunRight,
-			args.sunUp,
-			args.sunForward,
+			sunRight,
+			sunUp,
+			sunForward,
 			data.position,
 			data.size,
 			data.size,
-			-args.zDepth,
+			-zDepth,
 			0,
 			frustumPoints);
 		vec3 frustumMin(Float32MaxValue);
@@ -76,36 +78,141 @@ void FrustumCulling::CullCSM(CSMArgs const& args, vstd::span<ShadowmapData> casc
 			frustumMax = max(frustumMax, i);
 		}
 		camVec[i].clear();
+
 		MathLib::GetOrthoCamFrustumPlanes(
-			args.sunRight,
-			args.sunUp,
-			args.sunForward,
+			sunRight,
+			sunUp,
+			sunForward,
 			data.position,
 			data.size,
 			data.size,
-			-args.zDepth,
+			-zDepth,
 			0,
 			frustumPlanes);
-		for (auto idx : vstd::range(transforms.size())) {
-			auto&& obj = transforms[idx];
+		for (auto idx : inVolumeObjs) {
+			auto&& obj = transforms[idx].first;
+			auto&& projBBox = transforms[idx].second;
+			auto&& minMax = camFrustumMinMax[i];
 			auto mat = GetCSMTransformMat(
 				obj.right,
 				obj.up,
 				obj.forward,
 				obj.position);
 
-			if (MathLib::BoxIntersect(
+			if (!MathLib::BoxIntersect(
 					mat,
 					frustumPlanes,
 					obj.bboxCenter,
 					obj.bboxExtent,
 					frustumMin,
-					frustumMax)) {
-				camVec[i].emplace_back(idx);
-			}
+					frustumMax)) continue;
+			//TODO
+			if (!MathLib::BoxIntersect(
+					sunLocalToWorld,
+					camFrustumPlanes[i].data(),
+					projBBox.center,
+					projBBox.extent,
+					minMax.first,
+					minMax.second)) continue;
+			camVec[i].emplace_back(idx);
 		}
 	}
 }
+void FrustumCulling::CalcVolume() {
+	vstd::vector<BoxVolume> boxPlanes;
+	inVolumeObjs.clear();
+	boxPlanes.push_back_func(
+		bboxVolumes.size(),
+		[&](size_t i) {
+			BoxVolume vol;
+			auto&& v = bboxVolumes[i];
+			MathLib::GetOrthoCamFrustumPlanes(
+				v.right,
+				v.up,
+				v.forward,
+				v.position,
+				v.bboxExtent.x,
+				v.bboxExtent.y,
+				-v.bboxExtent.z,
+				v.bboxExtent.z,
+				vol.planes.data());
+			for (auto&& p : vol.planes) {
+				p *= -1;
+			}
+			vol.minPoint = vec3(1e7f);
+			vol.maxPoint = vec3(-1e7f);
+			for (auto x : vstd::range(2))
+				for (auto y : vstd::range(2))
+					for (auto z : vstd::range(2)) {
+						vec3 pos(v.position + v.right * (x - 0.5f) * 2.0f * v.bboxExtent.x + v.up * (y - 0.5f) * 2.0f * v.bboxExtent.y + v.forward * (z - 0.5f) * 2.0f * v.bboxExtent.z);
+						vol.minPoint = min(vol.minPoint, pos);
+						vol.maxPoint = max(vol.maxPoint, pos);
+					}
+			return vol;
+		});
+	mat4 sunWorldToLocal = inverse(sunLocalToWorld);
+	for (auto i : vstd::range(transforms.size())) {
+		[&] {
+			auto&& obj = transforms[i].first;
+			auto&& bbox = transforms[i].second;
+			auto mat = GetCSMTransformMat(
+				obj.right,
+				obj.up,
+				obj.forward,
+				obj.position);
+			for (auto&& box : boxPlanes) {
+				if (MathLib::InnerBoxIntersect(
+						mat,
+						box.planes.data(),
+						obj.bboxCenter,
+						obj.bboxExtent,
+						box.minPoint,
+						box.maxPoint)) {
+					return;
+				}
+			}
+			vec3 objWorldPos(mat * vec4(obj.bboxCenter, 1));
+			vec3 objLocalMin(1e7f);
+			vec3 objLocalMax(-1e7f);
+			for (auto x : vstd::range(0, 2))
+				for (auto y : vstd::range(0, 2))
+					for (auto z : vstd::range(0, 2)) {
+						vec3 offsets(x - 0.5f, y - 0.5f, z - 0.5f);
+						offsets *= 2;
+						offsets *= obj.bboxExtent;
+						vec3 objVertexWorldPos = objWorldPos + offsets.x * obj.right + offsets.y * obj.up + offsets.z * obj.forward;
+						vec3 objVertexLocalPos = sunWorldToLocal * vec4(objVertexWorldPos, 1);
+						objLocalMin = min(objLocalMin, objVertexLocalPos);
+						objLocalMax = max(objLocalMax, objVertexLocalPos);
+					}
+			bbox.center = mix(objLocalMin, objLocalMax, 0.5f);
+			bbox.extent = (objLocalMax - objLocalMin) * 0.5f;
+			bbox.center.z += zDepth * 0.5f - bbox.extent.z;
+			bbox.extent.z = zDepth * 0.5f;
+			inVolumeObjs.emplace_back(i);
+		}();
+	}
+}
+
+void FrustumCulling::ExecuteCull() {
+	tf::Taskflow flow;
+	flow.emplace_all(
+		[&] {
+			cullResults.resize(args.size());
+			sunLocalToWorld = GetCSMTransformMat(
+				sunRight,
+				sunUp,
+				sunForward,
+				vec3(0));
+			CalcVolume();
+		},
+		[&](size_t i) {
+			Task(i);
+		},
+		args.size(), executor.num_workers());
+	shadowTask = executor.run(std::move(flow));
+}
+
 static vstd::optional<FrustumCulling> context;
 void FrustumCulling::Complete() {
 	shadowTask.wait();
@@ -120,10 +227,10 @@ VENGINE_UNITY_EXTERN void DestroyFrustumCullContext() {
 	context.Delete();
 }
 VENGINE_UNITY_EXTERN void AddCullObject(TRS const& data) {
-	context->transforms.emplace_back(data);
+	context->transforms.emplace_back(data, FrustumCulling::ProjectBBox{});
 }
 VENGINE_UNITY_EXTERN void UpdateCullObject(TRS const& data, uint index) {
-	context->transforms[index] = data;
+	context->transforms[index].first = data;
 }
 VENGINE_UNITY_EXTERN void RemoveCullObject(uint idx) {
 	if (idx < context->transforms.size() - 1)
@@ -131,17 +238,9 @@ VENGINE_UNITY_EXTERN void RemoveCullObject(uint idx) {
 	else
 		context->transforms.erase_last();
 }
+
 VENGINE_UNITY_EXTERN void ExecuteCull() {
-	tf::Taskflow flow;
-	flow.emplace_all(
-		[&] {
-			context->cullResults.resize(context->args.size());
-		},
-		[](size_t i) {
-			context->Task(i);
-		},
-		context->args.size(), context->executor.num_workers());
-	context->shadowTask = context->executor.run(std::move(flow));
+	context->ExecuteCull();
 }
 VENGINE_UNITY_EXTERN void CompleteCull() {
 	context->Complete();
@@ -159,6 +258,16 @@ VENGINE_UNITY_EXTERN uint BindCSM(
 		vstd::vector<FrustumCulling::ShadowmapData>(cascades, cascadeCount));
 	return size;
 }
+VENGINE_UNITY_EXTERN void BindSunLight(
+	vec3 sunRight,
+	vec3 sunUp,
+	vec3 sunForward,
+	float zDepth) {
+	context->sunRight = sunRight;
+	context->sunUp = sunUp;
+	context->sunForward = sunForward;
+	context->zDepth = zDepth;
+}
 VENGINE_UNITY_EXTERN void CullingResult(
 	uint camIndex,
 	uint cascadeIndex,
@@ -171,9 +280,15 @@ VENGINE_UNITY_EXTERN void CullingResult(
 	auto&& vec = context->args[camIndex].get<0>().second;
 	shadowmapData = vec[cascadeIndex];
 }
-
+VENGINE_UNITY_EXTERN void AddCullVolume(
+	TRS const& trs) {
+	context->bboxVolumes.emplace_back(trs);
+}
+VENGINE_UNITY_EXTERN void ClearCullVolume() {
+	context->bboxVolumes.clear();
+}
 }// namespace toolhub::renderer
-#define EXPORT_EXE
+//#define EXPORT_EXE
 #ifdef EXPORT_EXE
 static thread_local double value = 0;
 static std::atomic_size_t i;
@@ -199,6 +314,7 @@ int main() {
 			vec3(0),
 			vec3(1)};
 		AddCullObject(tt);
+		BindSunLight(vec3(1, 0, 0), vec3(0, 1, 0), vec3(0, 0, 1), 500);
 		vstd::vector<FrustumCulling::ShadowmapData> cascades;
 		uint dists[] = {5, 10, 25, 50};
 		cascades.push_back_func(
@@ -210,13 +326,9 @@ int main() {
 			vec3(1, 0, 0),
 			vec3(0, 1, 0),
 			vec3(0, 0, 1),
-			vec3(1, 0, 0),
-			vec3(0, 1, 0),
-			vec3(0, 0, 1),
 			vec3(0),
 			float(60 * Deg2Rad),
 			1,
-			500,
 			2048,
 			0.3f};
 		UpdateCullObject(tt, 0);

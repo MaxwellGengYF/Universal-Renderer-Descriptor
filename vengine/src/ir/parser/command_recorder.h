@@ -1,6 +1,5 @@
 #pragma once
-#include "Common/vstring.h"
-#include <ir/statement.h>
+#include <ir/api/statement.h>
 #include <Utility/ObjectStackAlloc.h>
 namespace luisa::ir {
 class CommandRecorder : public vstd::IOperatorNewBase {

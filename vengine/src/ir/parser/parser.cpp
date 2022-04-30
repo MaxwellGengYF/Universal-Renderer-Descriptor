@@ -1,7 +1,7 @@
 
-#include "ir/var_descriptor.h"
-#include <ir/parser_utility.h>
-#include <ir/parser.h>
+#include <ir/parser/type_descriptor.h>
+#include <ir/parser/parser_utility.h>
+#include <ir/parser/parser.h>
 namespace luisa::ir {
 #define JUMP_SPACE glb.space.GetNext(ite)
 enum class CharState : uint8_t {
@@ -78,6 +78,7 @@ public:
 static ParserGlobalData glb;
 Parser::Parser() {
 	glb.Init();
+	stateName.recorder = &recorder;
 }
 Type const* Parser::FindType(vstd::string_view name) {
 	vstd::HashCache<vstd::string_view> nameKey(name);
@@ -246,7 +247,7 @@ bool Parser::ParseStruct(char const*& ite) {
 	return true;
 }
 bool Parser::ParseFunction(char const*& ite) {
-	stateName.recorder.ClearFunction();
+	recorder.ClearFunction();
 	vstd::HashMap<vstd::string, Var const*> vars;
 	JUMP_SPACE;
 	if (glb.charTypes.Get(*ite) != CharState::Word) {
@@ -299,7 +300,7 @@ bool Parser::ParseFunction(char const*& ite) {
 				} else {
 					argVar = kernel->allocator.Allocate<VariableVar>();
 				}
-				argVar->index = functionVars.size();
+				argVar->index = GetVarIndex();
 				argVar->type = argType;
 				argVar->usage = Usage::Read;
 				functionVars.emplace_back(argVar);
@@ -339,7 +340,7 @@ bool Parser::ParseFunction(char const*& ite) {
 		switch (glb.charTypes.Get(*ite)) {
 			case CharState::Word:
 			case CharState::Number: {
-				vstd::vector<VarDescriptor> argNames;
+				vstd::vector<vstd::string_view> argNames;
 				vstd::string_view returnName;
 				vstd::string_view returnNameType;
 				vstd::string_view stateName;
@@ -364,7 +365,7 @@ bool Parser::ParseStatement(
 	vstd::string_view& returnName,
 	vstd::string_view& returnTypeName,
 	vstd::string_view& stateName,
-	vstd::vector<VarDescriptor>& argNames) {
+	vstd::vector<vstd::string_view>& argNames) {
 	if (!IsKeyword(glb.charTypes.Get(*ite))) {
 		errorMsg = "require statemenet name";
 		return false;
@@ -404,25 +405,7 @@ bool Parser::ParseStatement(
 		}
 		auto argName = glb.charTypes.GetNext(ite, IsKeyword);
 		JUMP_SPACE;
-		if (*ite != ':') {
-			errorMsg = "require argument's type";
-			return false;
-		}
-		++ite;
-		JUMP_SPACE;
-		if (!IsKeyword(glb.charTypes.Get(*ite))) {
-			errorMsg = "require argument type name";
-			return false;
-		}
-		auto argTypeName = glb.charTypes.GetNext(ite, IsKeyword);
-		bool argIsRef;
-		if (*ite == '&') {
-			argIsRef = true;
-			++ite;
-		} else
-			argIsRef = false;
-		JUMP_SPACE;
-		argNames.emplace_back(argName, argTypeName, 0);
+		argNames.emplace_back(argName);
 		JUMP_SPACE;
 		switch (*ite) {
 			case ')':
@@ -455,6 +438,7 @@ bool Parser::ParseStatement(
 }
 
 bool Parser::ParseConst(char const*& ite) {
+	JUMP_SPACE;
 	std::pair<vstd::string_view, size_t> typeName;
 	if (!ParseType(typeName, ite))
 		return false;
@@ -466,12 +450,6 @@ bool Parser::ParseConst(char const*& ite) {
 		return false;
 	}
 	auto varName = glb.charTypes.GetNext(ite, IsKeyword);
-	JUMP_SPACE;
-	if (*ite != '=') {
-		errorMsg = "require '='";
-		return false;
-	}
-	++ite;
 	JUMP_SPACE;
 	if (*ite != '{') {
 		errorMsg = "require '{'";
@@ -538,10 +516,12 @@ Parser::Parse(vstd::string const& str) {
 	char const* ite = str.data();
 	kernel = vstd::create_unique(new Kernel());
 	stateName.parser = this;
-	stateName.recorder.objAlloc = &kernel->allocator;
+	recorder.objAlloc = &kernel->allocator;
+	stateName.objAlloc = &kernel->allocator;
 	functionVars.clear();
 	customTypes.Clear();
-	stateName.recorder.Reset();
+	recorder.Reset();
+	varIndex = 0;
 	while (ite) {
 		JUMP_SPACE;
 		if (!*ite) {
@@ -601,13 +581,13 @@ struct 16 T0 {
 struct 16 T1{
 	T0
 }
-const uint[5] fuck {1};
+const uint[5] fuck {1}
 def callable_0 (tt: T0&): void {
-	v2 = get_member(tt: int, 0: int, 2: int, 3: int): int
-	v3 = get_member(tt: int, 0: int, 3: int): int
-	v4 = add(v2: int, v2: int): int
-	fuck(v5: double, v6: float)
-	if(value_fuck: bool)
+	v2 = get_member(tt, 0, 2, 3): int
+	v3 = get_member(tt, 0, 3): int
+	v4 = add(v2, v2): int
+	fuck(v5, v6)
+	if(value_fuck)
 
 	endif()
 }

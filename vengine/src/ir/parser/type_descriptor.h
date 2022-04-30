@@ -1,16 +1,21 @@
 #pragma once
 #include <Common/Common.h>
 namespace luisa::ir {
-struct VarDescriptor {
+struct TypeDescriptor {
 	vstd::string_view typeName;
-	vstd::string_view varName;
 	size_t typeArrSize;
-	VarDescriptor(
+	TypeDescriptor(
 		vstd::string_view typeName,
-		vstd::string_view varName,
 		size_t typeArrSize)
 		: typeName(typeName),
-		  varName(varName),
 		  typeArrSize(typeArrSize) {}
+};
+struct VarDescriptor {
+	vstd::string_view varName;
+	TypeDescriptor typeDesc;
+	VarDescriptor(
+		vstd::string_view varName,
+		TypeDescriptor const& typeDesc)
+		: varName(varName), typeDesc(typeDesc) {}
 };
 }// namespace luisa::ir
