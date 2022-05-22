@@ -23,8 +23,9 @@ public:
 	using value_type = T;
 	using reference_type = T&;
 	using ptr_type = T*;
+
 private:
-	vstd::vector<T*, allocType> allPtrs;
+	vector<T*, allocType> allPtrs;
 	vector<void*, allocType> allocatedPtrs;
 	size_t capacity;
 	static void* PoolMalloc(size_t size) {
@@ -283,7 +284,6 @@ public:
 		allPtrs.push_back(ptr);
 		RemoveAllocatedObject(ptr);
 	}
-
 	~Pool() {
 		for (auto&& i : allocatedObjects) {
 			(reinterpret_cast<T*>(i))->~T();

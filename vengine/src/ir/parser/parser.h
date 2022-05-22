@@ -3,23 +3,23 @@
 #include <ir/parser/command_recorder.h>
 #include <ir/parser/statement_name.h>
 #include <ir/parser/type_descriptor.h>
-namespace luisa::ir {
+namespace toolhub::ir {
 class Parser {
 	vstd::string errorMsg;
 	vstd::unique_ptr<Kernel> kernel;
 	vstd::HashMap<vstd::string, Type const*> customTypes;
 	StatementName stateName;
 	Type const* FindType(vstd::string_view name);
-	vstd::vector<Var const*> functionVars;
+	vstd::vector<std::pair<vstd::string_view, Var const*>> functionVars;
 	CommandRecorder recorder;
 	uint64_t varIndex = 0;
 	bool ParseStatement(
 		char const*& ite,
 		vstd::string_view& returnName,
-		vstd::string_view& returnTypeName,
+		TypeDescriptor& typeDesc,
 		vstd::string_view& stateName,
 		vstd::vector<vstd::string_view>& argNames);
-	bool ParseType(std::pair<vstd::string_view, size_t>& result, char const*& ite);
+	bool ParseType(TypeDescriptor& result, char const*& ite);
 
 public:
 	Parser();
@@ -37,4 +37,4 @@ public:
 		return varIndex++;
 	}
 };
-}// namespace luisa::ir
+}// namespace toolhub::ir

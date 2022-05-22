@@ -30,12 +30,9 @@ FrustumCulling::~FrustumCulling() {
 }
 
 void FrustumCulling::Task(size_t i) {
-	args[i].multi_visit(
-		[&](auto&& v) { CullCSM(v.first, v.second, i); },
-		[&](auto&& v) { CullCamera(v); });
-}
-void FrustumCulling::CullCamera(CameraArgs const& args) {
-	//TODO
+	auto&& v = args[i];
+	std::shared_lock lck(mtx);
+	CullCSM(v.first, v.second, i);
 }
 void FrustumCulling::CullCSM(CSMArgs const& args, vstd::span<ShadowmapData> cascades, size_t camCount) {
 	auto&& camVec = cullResults[camCount];
@@ -227,12 +224,14 @@ VENGINE_UNITY_EXTERN void DestroyFrustumCullContext() {
 	context.Delete();
 }
 VENGINE_UNITY_EXTERN void AddCullObject(TRS const& data) {
+	std::lock_guard lck(context->mtx);
 	context->transforms.emplace_back(data, FrustumCulling::ProjectBBox{});
 }
 VENGINE_UNITY_EXTERN void UpdateCullObject(TRS const& data, uint index) {
 	context->transforms[index].first = data;
 }
 VENGINE_UNITY_EXTERN void RemoveCullObject(uint idx) {
+	std::lock_guard lck(context->mtx);
 	if (idx < context->transforms.size() - 1)
 		context->transforms[idx] = context->transforms.erase_last();
 	else
@@ -277,7 +276,7 @@ VENGINE_UNITY_EXTERN void CullingResult(
 	vstd::span<uint> results(context->cullResults[camIndex][cascadeIndex]);
 	resultArray = results.data();
 	resultCount = results.size();
-	auto&& vec = context->args[camIndex].get<0>().second;
+	auto&& vec = context->args[camIndex].second;
 	shadowmapData = vec[cascadeIndex];
 }
 VENGINE_UNITY_EXTERN void AddCullVolume(

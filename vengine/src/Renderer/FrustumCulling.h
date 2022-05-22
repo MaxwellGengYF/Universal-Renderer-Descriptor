@@ -1,6 +1,7 @@
 #pragma once
 #include <glm/Include.h>
 #include <taskflow/taskflow.hpp>
+#include <shared_mutex>
 using namespace glm;
 namespace toolhub::renderer {
 
@@ -37,8 +38,6 @@ public:
 		float nearPlane;
 	};
 	using CascadeArgs = std::pair<CSMArgs, vstd::vector<ShadowmapData>>;
-	struct CameraArgs {
-	};
 	struct BoxVolume {
 		std::array<vec4, 6> planes;
 		vec3 minPoint;
@@ -60,20 +59,16 @@ public:
 	mat4 sunLocalToWorld;
 	vstd::vector<TRS> bboxVolumes;
 	vstd::vector<size_t> inVolumeObjs;
-
+	std::shared_mutex mtx;
 	tf::Executor executor;
 	tf::Future<void> shadowTask;
 	vstd::vector<vstd::vector<vstd::vector<uint>>> cullResults;
 	vstd::vector<std::pair<TRS, ProjectBBox>> transforms;
-	vstd::vector<vstd::variant<
-		CascadeArgs,
-		CameraArgs>>
-		args;
+	vstd::vector<CascadeArgs> args;
 	FrustumCulling(uint threadCount);
 	~FrustumCulling();
 	void Task(size_t i);
 	void Complete();
-	void CullCamera(CameraArgs const& args);
 	void CullCSM(CSMArgs const& args, vstd::span<ShadowmapData> cascades, size_t camCount);
 	void ExecuteCull();
 	void CalcVolume();

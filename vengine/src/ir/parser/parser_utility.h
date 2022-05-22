@@ -2,7 +2,7 @@
 #include <ir/api/kernel.h>
 #include <bitset>
 #include <Utility/StringUtility.h>
-namespace luisa::ir {
+namespace toolhub::ir {
 
 template<typename T>
 struct StateRecorder {
@@ -62,4 +62,4 @@ struct StateRecorder<bool> {
 	}
 };
 
-}// namespace luisa::ir
+}// namespace toolhub::ir

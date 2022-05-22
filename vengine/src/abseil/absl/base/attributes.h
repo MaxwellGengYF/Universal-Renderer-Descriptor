@@ -141,8 +141,8 @@
     (!defined(_WIN32) || (defined(__clang__) && __clang_major__ >= 9)) && \
     !defined(__MINGW32__)
 #undef ABSL_ATTRIBUTE_WEAK
-#define ABSL_ATTRIBUTE_WEAK __attribute__((weak))
-#define ABSL_HAVE_ATTRIBUTE_WEAK 1
+#define ABSL_ATTRIBUTE_WEAK //__attribute__((weak))
+#define ABSL_HAVE_ATTRIBUTE_WEAK 0
 #else
 #define ABSL_ATTRIBUTE_WEAK
 #define ABSL_HAVE_ATTRIBUTE_WEAK 0

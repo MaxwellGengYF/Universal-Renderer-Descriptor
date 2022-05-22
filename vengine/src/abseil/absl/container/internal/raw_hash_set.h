@@ -444,7 +444,7 @@ inline ctrl_t* EmptyGroup() {
 
 // Mixes a randomly generated per-process seed with `hash` and `ctrl` to
 // randomize insertion order within groups.
-ABSL_DLL bool ShouldInsertBackwards(size_t hash, const ctrl_t* ctrl);
+bool ShouldInsertBackwards(size_t hash, const ctrl_t* ctrl);
 
 // Returns a per-table, hash salt, which changes on resize. This gets mixed into
 // H1 to randomize iteration order per-table.
@@ -655,7 +655,7 @@ inline bool IsValidCapacity(size_t n) { return ((n + 1) & n) == 0 && n > 0; }
 //   IsValidCapacity(capacity)
 //   ctrl[capacity] == ctrl_t::kSentinel
 //   ctrl[i] != ctrl_t::kSentinel for all i < capacity
-ABSL_DLL void ConvertDeletedToEmptyAndFullToDeleted(ctrl_t* ctrl, size_t capacity);
+void ConvertDeletedToEmptyAndFullToDeleted(ctrl_t* ctrl, size_t capacity);
 
 // Converts `n` into the next valid capacity, per `IsValidCapacity`.
 inline size_t NormalizeCapacity(size_t n) {

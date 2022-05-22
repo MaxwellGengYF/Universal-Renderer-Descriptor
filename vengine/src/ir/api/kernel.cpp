@@ -1,6 +1,6 @@
 
 #include <ir/api/kernel.h>
-namespace luisa::ir {
+namespace toolhub::ir {
 namespace detail {
 class KernelAllocator : public vstd::IOperatorNewBase {
 public:
@@ -83,4 +83,4 @@ Kernel::Kernel()
 Kernel::~Kernel() {
 	detail::InitKernelAllocator();
 }
-}// namespace luisa::ir
+}// namespace toolhub::ir

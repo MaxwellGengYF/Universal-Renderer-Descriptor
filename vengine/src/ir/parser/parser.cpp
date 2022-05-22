@@ -2,7 +2,7 @@
 #include <ir/parser/type_descriptor.h>
 #include <ir/parser/parser_utility.h>
 #include <ir/parser/parser.h>
-namespace luisa::ir {
+namespace toolhub::ir {
 #define JUMP_SPACE glb.space.GetNext(ite)
 enum class CharState : uint8_t {
 	None,
@@ -78,6 +78,7 @@ public:
 static ParserGlobalData glb;
 Parser::Parser() {
 	glb.Init();
+	stateName.Init();
 	stateName.recorder = &recorder;
 }
 Type const* Parser::FindType(vstd::string_view name) {
@@ -88,7 +89,7 @@ Type const* Parser::FindType(vstd::string_view name) {
 	if (!ite) return nullptr;
 	return ite.Value();
 }
-bool Parser::ParseType(std::pair<vstd::string_view, size_t>& result, char const*& ite) {
+bool Parser::ParseType(TypeDescriptor& result, char const*& ite) {
 	if (glb.charTypes.Get(*ite) == CharState::Word) {
 		result = {glb.charTypes.GetNext(ite, IsKeyword), 0};
 	} else {
@@ -109,7 +110,7 @@ bool Parser::ParseType(std::pair<vstd::string_view, size_t>& result, char const*
 			errorMsg = "array's size must be unsigned integer";
 			return false;
 		}
-		result.second = arraySize;
+		result.typeArrSize = arraySize;
 		JUMP_SPACE;
 		if (*ite != ']') {
 			errorMsg = "require ']'";
@@ -247,8 +248,6 @@ bool Parser::ParseStruct(char const*& ite) {
 	return true;
 }
 bool Parser::ParseFunction(char const*& ite) {
-	recorder.ClearFunction();
-	vstd::HashMap<vstd::string, Var const*> vars;
 	JUMP_SPACE;
 	if (glb.charTypes.Get(*ite) != CharState::Word) {
 		errorMsg = "Invalid syntax: require name after \"def\"";
@@ -262,6 +261,7 @@ bool Parser::ParseFunction(char const*& ite) {
 	}
 	++ite;
 	// parse argument
+	functionVars.clear();
 	for (bool loop = true; loop;) {
 		JUMP_SPACE;
 		auto state = glb.charTypes.Get(*ite);
@@ -288,7 +288,6 @@ bool Parser::ParseFunction(char const*& ite) {
 				} else
 					argIsRef = false;
 				JUMP_SPACE;
-
 				auto argType = FindType(argTypeName);
 				if (!argType) {
 					errorMsg << "Invalid argument type: " << argTypeName;
@@ -300,11 +299,9 @@ bool Parser::ParseFunction(char const*& ite) {
 				} else {
 					argVar = kernel->allocator.Allocate<VariableVar>();
 				}
-				argVar->index = GetVarIndex();
 				argVar->type = argType;
 				argVar->usage = Usage::Read;
-				functionVars.emplace_back(argVar);
-				vars.Emplace(argName, argVar);
+				functionVars.emplace_back(argName, argVar);
 
 			} break;
 			case CharState::RightRound:
@@ -327,14 +324,17 @@ bool Parser::ParseFunction(char const*& ite) {
 		errorMsg = "Invalid return type";
 		return false;
 	}
-	auto returnTypeName = glb.charTypes.GetNext(ite, IsKeyword);
+	TypeDescriptor returnTypeName;
+	if (!ParseType(returnTypeName, ite)) {
+		return false;
+	}
 	JUMP_SPACE;
 	if (*ite != '{') {
 		errorMsg = "require '{' after function return type";
 		return false;
 	}
 	++ite;
-
+	recorder.AddArguments(functionVars);
 	for (bool loop = true; loop;) {
 		JUMP_SPACE;
 		switch (glb.charTypes.Get(*ite)) {
@@ -342,9 +342,11 @@ bool Parser::ParseFunction(char const*& ite) {
 			case CharState::Number: {
 				vstd::vector<vstd::string_view> argNames;
 				vstd::string_view returnName;
-				vstd::string_view returnNameType;
+				TypeDescriptor returnNameType;
 				vstd::string_view stateName;
-				if (!ParseStatement(ite, returnName, returnNameType, stateName, argNames)) return false;
+				if (!ParseStatement(ite, returnName, returnNameType, stateName, argNames)) {
+					return false;
+				}
 				// TODO: process statement
 
 			} break;
@@ -357,13 +359,17 @@ bool Parser::ParseFunction(char const*& ite) {
 				return false;
 		}
 	}
-
+	auto callable = stateName.AddCustomFunc(returnTypeName, funcName, functionVars, recorder.GetStatements());
+	if (!callable)
+		return false;
+	recorder.ClearFunction();
+	kernel->callables.emplace_back(callable);
 	return true;
 }
 bool Parser::ParseStatement(
 	char const*& ite,
 	vstd::string_view& returnName,
-	vstd::string_view& returnTypeName,
+	TypeDescriptor& returnTypeName,
 	vstd::string_view& stateName,
 	vstd::vector<vstd::string_view>& argNames) {
 	if (!IsKeyword(glb.charTypes.Get(*ite))) {
@@ -371,6 +377,8 @@ bool Parser::ParseStatement(
 		return false;
 	}
 	stateName = glb.charTypes.GetNext(ite, IsKeyword);
+	returnName = {};
+	returnTypeName = TypeDescriptor({}, 0);
 	JUMP_SPACE;
 	switch (*ite) {
 		case '=': {
@@ -432,17 +440,20 @@ bool Parser::ParseStatement(
 		}
 		++ite;
 		JUMP_SPACE;
-		returnTypeName = glb.charTypes.GetNext(ite, IsKeyword);
+		if (!ParseType(returnTypeName, ite))
+			return false;
 	}
-	return true;
+	VarDescriptor varDesc(returnName, returnTypeName);
+	bool result = this->stateName.Run(stateName, varDesc, argNames);
+	return result;
 }
 
 bool Parser::ParseConst(char const*& ite) {
 	JUMP_SPACE;
-	std::pair<vstd::string_view, size_t> typeName;
+	TypeDescriptor typeName;
 	if (!ParseType(typeName, ite))
 		return false;
-	auto type = GetType(typeName.first, typeName.second);
+	auto type = GetType(typeName.typeName, typeName.typeArrSize);
 	if (!type) return false;
 	JUMP_SPACE;
 	if (!IsKeyword(glb.charTypes.Get(*ite))) {
@@ -457,6 +468,7 @@ bool Parser::ParseConst(char const*& ite) {
 	}
 	++ite;
 	vstd::vector<vstd::variant<int64, double>, VEngine_AllocType::VEngine, 1> arrayResult;
+	bool containedFloat = false;
 	for (bool loop = true; loop;) {
 		JUMP_SPACE;
 		if (glb.charTypes.Get(*ite) != CharState::Number) {
@@ -467,6 +479,9 @@ bool Parser::ParseConst(char const*& ite) {
 		if (!num.valid()) {
 			errorMsg = "illegal number";
 			return false;
+		}
+		if (num.IsTypeOf<double>()) {
+			containedFloat = true;
 		}
 		arrayResult.emplace_back(num);
 		JUMP_SPACE;
@@ -483,19 +498,92 @@ bool Parser::ParseConst(char const*& ite) {
 				return false;
 		}
 	}
-	if (arrayResult.size() > typeName.second) {
+	if (arrayResult.size() > typeName.typeArrSize) {
 		errorMsg = "literal value more than expected";
 		return false;
 	}
-	auto GenConstantSpan = [&]<typename T>() -> vstd::span<T const> {
-		T* alloc = kernel->allocator.AllocateSpan<T>(typeName.second, [](vstd::span<T> v) { memset(v.data(), 0, v.size_bytes()); });
-		for (auto i : vstd::range(arrayResult.size())) {
-			alloc[i] = arrayResult[i].visit_or(
-				T(0),
-				[](auto&& a) { return static_cast<T>(a); });
-			//TODO: vector, matrix
-		}
+	auto&& result = kernel->constants.emplace_back();
+	auto Set = [&](size_t idx, auto& result) {
+		arrayResult[idx].visit([&](auto&& v) {
+			result = static_cast<std::remove_cvref_t<decltype(result)>>(v);
+		});
 	};
+	auto SetSpan = [&]<typename T>() {
+		auto sp = kernel->allocator.AllocateSpan<T>(arrayResult.size(), [](auto sp) {})->span();
+		for (auto i : vstd::range(sp.size())) {
+			Set(i, sp[i]);
+		}
+		result.data = sp;
+	};
+	auto SetSpanVector = [&]<typename Vec>(size_t dim) {
+		auto sp = kernel->allocator.AllocateSpan<Vec>(arrayResult.size() / dim, [](auto sp) {})->span();
+		size_t idx = 0;
+		for (auto i : vstd::range(sp.size())) {
+			float* ptr = reinterpret_cast<float*>(sp.data() + i);
+			for (auto v : vstd::range(dim)) {
+				Set(idx, ptr[v]);
+				++idx;
+			}
+		}
+		result.data = sp;
+	};
+	auto SetSpanMatrix = [&]<typename Mat>(size_t dim) {
+		auto sp = kernel->allocator.AllocateSpan<Mat>(arrayResult.size() / (dim * dim), [](auto sp) {})->span();
+		size_t idx = 0;
+		for (auto i : vstd::range(sp.size())) {
+			for (auto c : vstd::range(dim)) {
+				float* ptr = reinterpret_cast<float*>(&sp[i].cols[c]);
+				for (auto v : vstd::range(dim)) {
+					Set(idx, ptr[v]);
+					++idx;
+				}
+			}
+		}
+		result.data = sp;
+	};
+	result.type = type;
+	if (type->tag == Type::Tag::Array)
+		type = type->element;
+	switch (type->tag) {
+		case Type::Tag::Float:
+			SetSpan.operator()<float>();
+			break;
+		case Type::Tag::Int:
+			SetSpan.operator()<int>();
+			break;
+		case Type::Tag::UInt:
+			SetSpan.operator()<uint>();
+			break;
+		case Type::Tag::Bool:
+			SetSpan.operator()<bool>();
+			break;
+		case Type::Tag::Vector:
+			switch (type->dimension) {
+				case 2:
+					SetSpanVector.operator()<float2>(2);
+					break;
+				case 3:
+					SetSpanVector.operator()<float3>(3);
+					break;
+				case 4:
+					SetSpanVector.operator()<float4>(4);
+					break;
+			}
+			break;
+		case Type::Tag::Matrix:
+			switch (type->dimension) {
+				case 2:
+					SetSpanMatrix.operator()<float2x2>(2);
+					break;
+				case 3:
+					SetSpanMatrix.operator()<float3x3>(3);
+					break;
+				case 4:
+					SetSpanMatrix.operator()<float4x4>(4);
+					break;
+			}
+			break;
+	}
 	return true;
 }
 bool Parser::ParseGroupShared(char const*& ite) { return true; }
@@ -518,7 +606,6 @@ Parser::Parse(vstd::string const& str) {
 	stateName.parser = this;
 	recorder.objAlloc = &kernel->allocator;
 	stateName.objAlloc = &kernel->allocator;
-	functionVars.clear();
 	customTypes.Clear();
 	recorder.Reset();
 	varIndex = 0;
@@ -569,38 +656,4 @@ Parser::Parse(vstd::string const& str) {
 	CollectKernel();
 	return std::move(kernel);
 }
-}// namespace luisa::ir
-int main() {
-	vstd::string data(R"(
-struct 16 T0 {
-	float
-	float2
-	float4
-	float[5]
-}
-struct 16 T1{
-	T0
-}
-const uint[5] fuck {1}
-def callable_0 (tt: T0&): void {
-	v2 = get_member(tt, 0, 2, 3): int
-	v3 = get_member(tt, 0, 3): int
-	v4 = add(v2, v2): int
-	fuck(v5, v6)
-	if(value_fuck)
-
-	endif()
-}
-)"_sv);
-	using namespace luisa::ir;
-	Parser parser;
-	auto errorMsg = parser.Parse(data);
-	errorMsg.multi_visit(
-		[&](vstd::unique_ptr<Kernel>& kernel) {
-			std::cout << "Custom struct size: " << kernel->types.size() << '\n';
-		},
-		[&](vstd::string const& str) {
-			std::cout << "Error: " << str << '\n';
-		});
-	return 0;
-}
+}// namespace toolhub::ir

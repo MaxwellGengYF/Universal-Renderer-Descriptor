@@ -9,7 +9,7 @@
 #include <tuple>
 #include <type_traits>
 
-namespace luisa {
+namespace toolhub {
 
 template<typename... T>
 struct always_false : std::false_type {};

@@ -3,7 +3,7 @@
 #include <ir/api/var.h>
 #include <ir/api/allocatable.h>
 #include <Common/Common.h>
-namespace luisa::ir {
+namespace toolhub::ir {
 
 enum struct CallOp : uint32_t {
 	ALL,
@@ -224,38 +224,39 @@ struct BuiltinCallStmt : public Statement {
 };
 struct CustomCallStmt : public Statement {
 	Var const* dst;
-	uint64 callableIndex;
+	vstd::string callable;
 	vstd::span<Var const*> args;
 	Tag tag() const override { return Tag::CustomCall; }
 };
 struct MemberStmt : public Statement {
 	Var const* dst;
 	Var const* src;
-	uint64 indices;
+	vstd::span<uint64> indices;
 	ReadWrite rwState;
 	Tag tag() const override { return Tag::Member; }
 };
 struct AccessStmt : public Statement {
 	Var const* dst;
 	Var const* src;
-	Var const* indices;
+	vstd::variant<Var const*, uint64> index;
 	ReadWrite rwState;
 	Tag tag() const override { return Tag::Access; }
 };
 struct IfStmt : public Statement {
-	Var const* condition;
-	vstd::span<Statement const*> trueField;
-	vstd::span<Statement const*> falseField;
+	vstd::variant<Var const*, bool> condition;
+	vstd::vector<Statement const*> trueField;
+	vstd::vector<Statement const*> falseField;
 	Tag tag() const override { return Tag::If; }
 };
 struct LoopStmt : public Statement {
 	Var const* condition;
-	vstd::span<Statement const*> commands;
+	vstd::vector<Statement const*> commands;
 	Tag tag() const override { return Tag::Loop; }
 };
 
 struct SwitchStmt : public Statement {
-	vstd::HashMap<int32_t, vstd::span<Statement const*>> cases;
+	using Case = std::pair<int32_t, vstd::vector<Statement const*>>;
+	vstd::vector<Case> cases;
 	Tag tag() const override { return Tag::Switch; }
 };
-}// namespace luisa::ir
+}// namespace toolhub::ir

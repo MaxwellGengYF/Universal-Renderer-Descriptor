@@ -1,9 +1,31 @@
 BuildBinary = {
     FileRefresher = false,
     FrustumCulling = false,
+    TextureTools = false,
     IR = true,
     Vulkan = false
 }
+rule("copy_to_unity")
+after_build(function(target)
+    if is_mode("release") then
+        local build_path = "$(buildir)/windows/x64/release/"
+        local dstPath = "D:/UnityProject/Assets/Plugins/";
+        os.cp(build_path .. "/FrustumCulling.dll", dstPath)
+        os.cp("bin/mimalloc.dll", dstPath)
+        os.cp(build_path .. "/VEngine_DLL.dll", dstPath)
+    end
+end)
+rule("copy_to_build")
+after_build(function(target)
+    build_path = nil
+    if is_mode("release") then
+        build_path = "$(buildir)/windows/x64/release/"
+    else
+        build_path = "$(buildir)/windows/x64/debug/"
+    end
+    os.cp("bin/*.dll", build_path)
+end)
+
 IncludePaths = {"./"}
 -- Abseil
 --[[
@@ -14,7 +36,7 @@ BuildProject({
     debugMacros = {"_DEBUG"},
     releaseMacros = {"NDEBUG"},
     files = {"abseil/absl/**.cc"},
-    includePaths = IncludePaths,
+    includePaths = {"./", "abseil"},
     debugException = true,
     releaseException = true
 })
@@ -63,6 +85,34 @@ BuildProject({
     debugException = true,
     releaseException = true
 })
+-- STB
+BuildProject({
+    projectName = "stb",
+    projectType = "shared",
+    macros = {"STB_EXPORT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
+    debugMacros = {"_DEBUG"},
+    releaseMacros = {"NDEBUG"},
+    files = {"stb/*.cpp"},
+    depends = {"VEngine_DLL"},
+    includePaths = IncludePaths,
+    debugException = true,
+    releaseException = true
+})
+-- TextureTools
+if BuildBinary.TextureTools == true then
+    BuildProject({
+        projectName = "TextureTools",
+        projectType = "shared",
+        macros = {"TEXTOOLS_EXPORT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
+        debugMacros = {"_DEBUG"},
+        releaseMacros = {"NDEBUG"},
+        files = {"TextureTools/*.cpp"},
+        depends = {"VEngine_DLL", "stb"},
+        includePaths = IncludePaths,
+        debugException = true,
+        releaseException = true
+    })
+end
 -- VEngine_Graphics
 BuildProject({
     projectName = "VEngine_Graphics",
@@ -70,7 +120,7 @@ BuildProject({
     macros = {"VENGINE_GRAPHICS_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"},
     debugMacros = {"_DEBUG"},
     releaseMacros = {"NDEBUG"},
-    files = {"Graphics/**.cpp", "stb/*.cpp"},
+    files = {"Graphics/**.cpp"},
     includePaths = IncludePaths,
     depends = {"VEngine_DLL"},
     unityBuildBatch = 4,
@@ -159,14 +209,7 @@ if BuildBinary.FrustumCulling == true then
         debugException = true,
         releaseException = true
     })
+    add_rules("copy_to_unity")
 end
 
-after_build(function(target)
-    build_path = nil
-    if is_mode("release") then
-        build_path = "$(buildir)/windows/x64/release/"
-    else
-        build_path = "$(buildir)/windows/x64/debug/"
-    end
-    os.cp("bin/*.dll", build_path)
-end)
+add_rules("copy_to_build")

@@ -6,7 +6,7 @@
 
 #include <ir/api/basic_types.h>
 
-namespace luisa {
+namespace toolhub {
 
 template struct Vector<bool, 2>;
 template struct Vector<bool, 3>;
@@ -21,4 +21,4 @@ template struct Vector<uint, 2>;
 template struct Vector<uint, 3>;
 template struct Vector<uint, 4>;
 
-}// namespace luisa
+}// namespace toolhub

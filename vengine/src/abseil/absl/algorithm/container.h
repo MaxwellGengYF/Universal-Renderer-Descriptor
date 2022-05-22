@@ -39,7 +39,7 @@
 
 #ifndef ABSL_ALGORITHM_CONTAINER_H_
 #define ABSL_ALGORITHM_CONTAINER_H_
-/*
+
 #include <algorithm>
 #include <cassert>
 #include <iterator>
@@ -49,7 +49,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-*/
+
 #include "absl/algorithm/algorithm.h"
 #include "absl/base/macros.h"
 #include "absl/meta/type_traits.h"
@@ -104,7 +104,7 @@ ContainerIter<C> c_end(C& c) { return end(c); }
 
 template <typename T>
 struct IsUnorderedContainer : std::false_type {};
-/*
+
 template <class Key, class T, class Hash, class KeyEqual, class Allocator>
 struct IsUnorderedContainer<
     std::unordered_map<Key, T, Hash, KeyEqual, Allocator>> : std::true_type {};
@@ -112,7 +112,7 @@ struct IsUnorderedContainer<
 template <class Key, class Hash, class KeyEqual, class Allocator>
 struct IsUnorderedContainer<std::unordered_set<Key, Hash, KeyEqual, Allocator>>
     : std::true_type {};
-*/
+
 // container_algorithm_internal::c_size. It is meant for internal use only.
 
 template <class C>
@@ -1658,8 +1658,6 @@ bool c_prev_permutation(C& c, LessThan&& comp) {
 // Container-based version of the <algorithm> `std::iota()` function
 // to compute successive values of `value`, as if incremented with `++value`
 // after each element is written. and write them to the container.
-/*
-
 template <typename Sequence, typename T>
 void c_iota(Sequence& sequence, T&& value) {
   std::iota(container_algorithm_internal::c_begin(sequence),
@@ -1769,7 +1767,7 @@ OutputIt c_partial_sum(const InputSequence& input, OutputIt output_first,
                           container_algorithm_internal::c_end(input),
                           output_first, std::forward<BinaryOp>(op));
 }
-*/
+
 ABSL_NAMESPACE_END
 }  // namespace absl
 

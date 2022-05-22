@@ -169,18 +169,18 @@ void MathLib::GetPerspFrustumPlanes(
 	frustumPlanes[4] = GetPlane((nearCorners[0]), (nearCorners[2]), (position));
 	frustumPlanes[5] = GetPlane((nearCorners[3]), (nearCorners[1]), (position));
 }
-void MathLib::GetFrustumBoundingBox(
+std::pair<vec3, vec3> MathLib::GetFrustumBoundingBox(
 	const vec3& right,
 	const vec3& up,
 	const vec3& forward,
 	const vec3& pos,
-	float nearWindowHeight,
-	float farWindowHeight,
+	float fov,
 	float aspect,
 	float nearZ,
-	float farZ,
-	vec3* minValue,
-	vec3* maxValue) noexcept {
+	float farZ) noexcept {
+	float tt = tan(fov * 0.5);
+	float nearWindowHeight = nearZ * tt;
+	float farWindowHeight = farZ * tt;
 	float halfNearYHeight = nearWindowHeight * 0.5;
 	float halfFarYHeight = farWindowHeight * 0.5;
 	float halfNearXWidth = halfNearYHeight * aspect;
@@ -194,12 +194,13 @@ void MathLib::GetFrustumBoundingBox(
 	poses[5] = pos + forward * farZ - right * halfFarXWidth + up * halfFarYHeight;
 	poses[6] = pos + forward * farZ + right * halfFarXWidth - up * halfFarYHeight;
 	poses[7] = pos + forward * farZ + right * halfFarXWidth + up * halfFarYHeight;
-	*minValue = poses[7];
-	*maxValue = poses[7];
+	vec3 minValue = poses[7];
+	vec3 maxValue = minValue;
 	for (uint i = 0; i < 7; ++i) {
-		*minValue = min(poses[i], *minValue);
-		*maxValue = max(poses[i], *maxValue);
+		minValue = min(poses[i], minValue);
+		maxValue = max(poses[i], maxValue);
 	};
+	return {minValue, maxValue};
 }
 bool MathLib::ConeIntersect(const Cone& cone, const vec4& plane) noexcept {
 	vec3 dir = cone.direction;

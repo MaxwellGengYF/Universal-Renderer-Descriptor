@@ -146,7 +146,7 @@ inline void operator delete[](void* p, size_t, ::std::nothrow_t const&) {
 #define EASTL_ASSERT_ENABLED 1
 #endif
 #ifndef EASTL_FAIL_MSG
-#define EASTL_FAIL_MSG(msg) VEngine_Log(msg); VENGINE_EXIT;
+#define EASTL_FAIL_MSG(msg) {VEngine_Log(msg); VENGINE_EXIT;}
 #endif
 #ifndef EASTL_ASSERT_MSG
 #if EASTL_ASSERT_ENABLED

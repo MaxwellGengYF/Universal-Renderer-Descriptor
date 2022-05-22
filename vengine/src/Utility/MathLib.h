@@ -129,18 +129,15 @@ public:
 		vec3* minValue,
 		vec3* maxValue
 	);*/
-	static void GetFrustumBoundingBox(
+	static std::pair<vec3, vec3> GetFrustumBoundingBox(
 		const vec3& right,
 		const vec3& up,
 		const vec3& forward,
 		const vec3& position,
-		float nearWindowHeight,
-		float farWindowHeight,
+		float fov,
 		float aspect,
 		float nearZ,
-		float farZ,
-		vec3* minValue,
-		vec3* maxValue) noexcept;
+		float farZ) noexcept;
 
 	static mat4 GetOrthoMatrix(
 		float nearPlane,

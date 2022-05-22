@@ -2,7 +2,7 @@
 #include <Common/Common.h>
 #include <ir/api/basic_types.h>
 #include <ir/api/allocatable.h>
-namespace luisa::ir {
+namespace toolhub::ir {
 using basic_types = std::tuple<
 	bool, float, int, uint,
 	bool2, float2, int2, uint2,
@@ -72,7 +72,6 @@ struct Var : public Allocatable {
 		Ref
 	};
 	Type const* type;
-	uint64_t index;
 	Usage usage;
 	virtual Tag tag() const = 0;
 	virtual ~Var() = default;
@@ -93,4 +92,4 @@ struct VariableVar : public Var {
 struct RefVar : public Var {
 	Tag tag() const override { return Tag::Ref; }
 };
-}// namespace luisa::ir
+}// namespace toolhub::ir

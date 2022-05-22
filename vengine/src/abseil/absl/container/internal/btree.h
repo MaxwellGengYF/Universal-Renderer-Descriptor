@@ -66,11 +66,9 @@
 #include "absl/container/internal/layout.h"
 #include "absl/memory/memory.h"
 #include "absl/meta/type_traits.h"
-#include "absl/strings/cord.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/compare.h"
 #include "absl/utility/utility.h"
-
+#include <string_view>
 namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace container_internal {
@@ -101,29 +99,15 @@ struct StringBtreeDefaultLess {
 
   // Compatibility constructor.
   StringBtreeDefaultLess(std::less<std::string>) {}  // NOLINT
-  StringBtreeDefaultLess(std::less<absl::string_view>) {}  // NOLINT
+  StringBtreeDefaultLess(std::less<std::string_view>) {}  // NOLINT
 
   // Allow converting to std::less for use in key_comp()/value_comp().
   explicit operator std::less<std::string>() const { return {}; }
-  explicit operator std::less<absl::string_view>() const { return {}; }
-  explicit operator std::less<absl::Cord>() const { return {}; }
+  explicit operator std::less<std::string_view>() const { return {}; }
 
-  absl::weak_ordering operator()(absl::string_view lhs,
-                                 absl::string_view rhs) const {
+  absl::weak_ordering operator()(std::string_view lhs,
+                                 std::string_view rhs) const {
     return compare_internal::compare_result_as_ordering(lhs.compare(rhs));
-  }
-  StringBtreeDefaultLess(std::less<absl::Cord>) {}  // NOLINT
-  absl::weak_ordering operator()(const absl::Cord &lhs,
-                                 const absl::Cord &rhs) const {
-    return compare_internal::compare_result_as_ordering(lhs.Compare(rhs));
-  }
-  absl::weak_ordering operator()(const absl::Cord &lhs,
-                                 absl::string_view rhs) const {
-    return compare_internal::compare_result_as_ordering(lhs.Compare(rhs));
-  }
-  absl::weak_ordering operator()(absl::string_view lhs,
-                                 const absl::Cord &rhs) const {
-    return compare_internal::compare_result_as_ordering(-rhs.Compare(lhs));
   }
 };
 
@@ -133,29 +117,15 @@ struct StringBtreeDefaultGreater {
   StringBtreeDefaultGreater() = default;
 
   StringBtreeDefaultGreater(std::greater<std::string>) {}  // NOLINT
-  StringBtreeDefaultGreater(std::greater<absl::string_view>) {}  // NOLINT
+  StringBtreeDefaultGreater(std::greater<std::string_view>) {}  // NOLINT
 
   // Allow converting to std::greater for use in key_comp()/value_comp().
   explicit operator std::greater<std::string>() const { return {}; }
-  explicit operator std::greater<absl::string_view>() const { return {}; }
-  explicit operator std::greater<absl::Cord>() const { return {}; }
+  explicit operator std::greater<std::string_view>() const { return {}; }
 
-  absl::weak_ordering operator()(absl::string_view lhs,
-                                 absl::string_view rhs) const {
+  absl::weak_ordering operator()(std::string_view lhs,
+                                 std::string_view rhs) const {
     return compare_internal::compare_result_as_ordering(rhs.compare(lhs));
-  }
-  StringBtreeDefaultGreater(std::greater<absl::Cord>) {}  // NOLINT
-  absl::weak_ordering operator()(const absl::Cord &lhs,
-                                 const absl::Cord &rhs) const {
-    return compare_internal::compare_result_as_ordering(rhs.Compare(lhs));
-  }
-  absl::weak_ordering operator()(const absl::Cord &lhs,
-                                 absl::string_view rhs) const {
-    return compare_internal::compare_result_as_ordering(-lhs.Compare(rhs));
-  }
-  absl::weak_ordering operator()(absl::string_view lhs,
-                                 const absl::Cord &rhs) const {
-    return compare_internal::compare_result_as_ordering(rhs.Compare(lhs));
   }
 };
 
@@ -277,25 +247,14 @@ struct key_compare_adapter<std::greater<std::string>, std::string> {
 };
 
 template <>
-struct key_compare_adapter<std::less<absl::string_view>, absl::string_view> {
+struct key_compare_adapter<std::less<std::string_view>, std::string_view> {
   using type = StringBtreeDefaultLess;
 };
 
 template <>
-struct key_compare_adapter<std::greater<absl::string_view>, absl::string_view> {
+struct key_compare_adapter<std::greater<std::string_view>, std::string_view> {
   using type = StringBtreeDefaultGreater;
 };
-
-template <>
-struct key_compare_adapter<std::less<absl::Cord>, absl::Cord> {
-  using type = StringBtreeDefaultLess;
-};
-
-template <>
-struct key_compare_adapter<std::greater<absl::Cord>, absl::Cord> {
-  using type = StringBtreeDefaultGreater;
-};
-
 // Detects an 'absl_btree_prefer_linear_node_search' member. This is
 // a protocol used as an opt-in or opt-out of linear search.
 //

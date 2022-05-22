@@ -158,7 +158,7 @@ LICENSE
 #define STBIWDEF static
 #else
 #ifdef __cplusplus
-#ifdef VENGINE_GRAPHICS_PROJECT
+#ifdef STB_EXPORT
 #define STBIWDEF extern "C" _declspec(dllexport)
 #else
 #define STBIWDEF extern "C" _declspec(dllimport)

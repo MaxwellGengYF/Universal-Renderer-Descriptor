@@ -1,10 +1,11 @@
 #pragma once
 #include <ir/api/var.h>
 #include <ir/api/statement.h>
-namespace luisa::ir {
+namespace toolhub::ir {
 class Callable : public Allocatable{
 public:
-    vstd::span<Statement const *> statements;
+    vstd::vector<Statement const *> statements;
     vstd::span<Var const*> arguments;
+    vstd::string name;
 };
-}// namespace luisa::ir
+}// namespace toolhub::ir

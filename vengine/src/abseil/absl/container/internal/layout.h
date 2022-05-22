@@ -173,7 +173,6 @@
 
 #include "absl/base/config.h"
 #include "absl/meta/type_traits.h"
-#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "absl/utility/utility.h"
 

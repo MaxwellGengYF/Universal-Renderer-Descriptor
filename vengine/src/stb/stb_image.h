@@ -363,7 +363,7 @@ extern "C" {
 #ifdef STB_IMAGE_STATIC
 #define STBIDEF static
 #else
-#ifdef VENGINE_GRAPHICS_PROJECT
+#ifdef STB_EXPORT
 #define STBIDEF extern "C" _declspec(dllexport)
 #else
 #define STBIDEF extern "C" _declspec(dllimport)

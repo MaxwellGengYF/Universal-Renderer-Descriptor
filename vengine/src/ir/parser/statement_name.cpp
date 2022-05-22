@@ -7,28 +7,91 @@
 #include <ir/parser/command_recorder.h>
 #include <ir/parser/parser.h>
 
-namespace luisa::ir {
+namespace toolhub::ir {
 static bool If(StatementName& s, StatementName::FuncCall const& funcPack) {
 	auto&& recorder = *s.recorder;
-	auto scope = recorder.PushStack();
-	scope->tag = CommandRecorder::ScopeTag::If;
+	auto scope = static_cast<IfScope*>(recorder.PushStack(ScopeTag::If));
+	if (funcPack.args.size() != 1) return false;
+	auto strv = funcPack.args[0];
+	if (strv == "true"_sv) {
+		scope->condition = true;
+	} else if (strv == "false"_sv) {
+		scope->condition = false;
+	} else {
+		scope->condition = recorder.TryGetVar(funcPack.args[0]);
+	}
+	if (!scope->condition.valid())
+		return false;
 	return true;
 }
 static bool EndIf(StatementName& s, StatementName::FuncCall const& funcPack) {
 	auto&& recorder = *s.recorder;
+	auto last = recorder.LastStack();
+	if (last && last->tag() == ScopeTag::If) {
+		recorder.PopStack();
+		return true;
+	}
+	return false;
+}
+static bool Else(StatementName& s, StatementName::FuncCall const& funcPack) {
+	auto&& recorder = *s.recorder;
+	auto last = recorder.LastStack();
+	if (last && last->tag() == ScopeTag::If) {
+		auto scope = static_cast<IfScope*>(last);
+		if (!scope->state) return false;
+		scope->state = false;
+		return true;
+	}
+	return false;
+}
+static bool Switch(StatementName& s, StatementName::FuncCall const& funcPack) {
+	auto&& recorder = *s.recorder;
+	auto scope = static_cast<SwitchScope*>(recorder.PushStack(ScopeTag::Switch));
+	if (funcPack.args.size() != 1) return false;
+	auto var = recorder.TryGetVar(funcPack.args[0]);
+	if (!var) return false;
+	auto typeTag = var->type->tag;
+	if (typeTag != Type::Tag::Int && typeTag != Type::Tag::UInt) return false;
+	scope->condition = var;
+	return true;
+}
+static bool EndSwitch(StatementName& s, StatementName::FuncCall const& funcPack) {
+	auto&& recorder = *s.recorder;
+	auto stack = recorder.LastStack();
+	if (stack->tag() != ScopeTag::Switch) return false;
 	recorder.PopStack();
 	return true;
 }
+static bool Case(StatementName& s, StatementName::FuncCall const& funcPack) {
+	if (funcPack.args.size() != 1) return false;
+	auto num = StringUtil::StringToNumber(funcPack.args[0]).template try_get<int64>();
+	if (!num) return false;
+	auto&& recorder = *s.recorder;
+	auto lastSwitch = recorder.LastStack();
+	if (lastSwitch->tag() != ScopeTag::Switch) return false;
+	auto scope = static_cast<CaseScope*>(recorder.NewStack(ScopeTag::Case));
+	scope->index = *num;
+	static_cast<SwitchScope*>(lastSwitch)->cases.emplace_back(scope);
+	return true;
+}
+static bool EndCase(StatementName& s, StatementName::FuncCall const& funcPack) {
+	auto&& recorder = *s.recorder;
+	auto last = recorder.LastStack();
+	if (last && last->tag() == ScopeTag::Case) {
+		recorder.PopStack();
+		return true;
+	}
+	return false;
+}
 Var const* StatementName::PrepareVar(VarDescriptor const& varDesc) {
-	Var* retVar = nullptr;
+	Var const* retVar = nullptr;
 	if (!varDesc.varName.empty()) {
 		retVar = recorder->TryGetVar(varDesc.varName);
 		if (!retVar) {
 			auto newVar = objAlloc->Allocate<VariableVar>();
 			newVar->usage = Usage::ReadWrite;
-			newVar->index = parser->GetVarIndex();
 			auto type = parser->GetType(varDesc.typeDesc.typeName, varDesc.typeDesc.typeArrSize);
-			if(!type) return nullptr;
+			if (!type) return nullptr;
 			newVar->type = type;
 			recorder->AddVar(newVar, varDesc.varName);
 			retVar = newVar;
@@ -57,9 +120,36 @@ bool StatementName::BuiltInFunc(CallOp callOp, FuncCall const& funcPack) {
 	recorder->AddStmt(stmt);
 	return true;
 }
-bool StatementName::BinaryOpCall(BinaryOp op, FuncCall const& funcPack) { return true; }
-bool StatementName::UnaryOpCall(UnaryOp op, FuncCall const& funcPack) { return true; }
-bool StatementName::AddCustomFunc(TypeDescriptor ret, vstd::string_view funcName, vstd::span<TypeDescriptor> args) {
+bool StatementName::BinaryOpCall(BinaryOp op, FuncCall const& funcPack) {
+	auto stmt = objAlloc->Allocate<BinaryStmt>();
+	stmt->dst = PrepareVar(funcPack.varDesc);
+	stmt->op = op;
+	if (funcPack.args.size() != 2) return false;
+	stmt->lhs = recorder->TryGetVar(funcPack.args[0]);
+	stmt->rhs = recorder->TryGetVar(funcPack.args[1]);
+	if (!stmt->lhs || !stmt->rhs) return false;
+	recorder->AddStmt(stmt);
+	//TODO: type check
+	return true;
+}
+bool StatementName::UnaryOpCall(UnaryOp op, FuncCall const& funcPack) {
+	auto stmt = objAlloc->Allocate<UnaryStmt>();
+	stmt->dst = PrepareVar(funcPack.varDesc);
+	if (funcPack.args[0] != 1)
+		return false;
+	stmt->lhs = recorder->TryGetVar(funcPack.args[0]);
+	stmt->op = op;
+	if (!stmt->lhs)
+		return false;
+	recorder->AddStmt(stmt);
+	//TODO: type check
+	return true;
+}
+Callable const*  StatementName::AddCustomFunc(
+	TypeDescriptor ret,
+	vstd::string_view funcName,
+	vstd::span<std::pair<vstd::string_view, Var const*>> args,
+	vstd::vector<Statement const*>&& stmts) {
 	Type const* retType = nullptr;
 	if (!ret.typeName.empty())
 		retType = parser->GetType(ret.typeName, ret.typeArrSize);
@@ -67,13 +157,16 @@ bool StatementName::AddCustomFunc(TypeDescriptor ret, vstd::string_view funcName
 	auto&& d = ite.Value();
 	d.targetRetType = retType;
 	for (auto&& i : args) {
-		auto argType = parser->GetType(i.typeName, i.typeArrSize);
-		if (!argType) return false;
-		d.argsType.emplace_back(argType);
+		d.argsType.emplace_back(i.second->type);
 	}
-	return true;
+	auto callable = objAlloc->Allocate<Callable>();
+	callable->name = funcName;
+	callable->arguments = objAlloc->AllocateSpan<Var const*>(args.size(), [](auto v) {})->span();
+	callable->statements = std::move(stmts);
+	memcpy(callable->arguments.data(), args.data(), args.size_bytes());
+	return callable;
 }
-bool StatementName::operator()(vstd::string_view funcName, VarDescriptor const& ret, ArgSpan sp) {
+bool StatementName::Run(vstd::string_view funcName, VarDescriptor const& ret, ArgSpan sp) {
 	auto ite = funcs.Find(funcName);
 	// Built-in
 	if (ite) {
@@ -83,24 +176,57 @@ bool StatementName::operator()(vstd::string_view funcName, VarDescriptor const& 
 	//Try custom
 	auto cusIte = customFuncs.Find(funcName);
 	if (!cusIte) return false;
-	vstd::vector<Var const*> argVars;
-	argVars.reserve(sp.size());
-	for(auto&& i : sp){
-		auto argVar = recorder->TryGetVar(i);
-		if(!argVar) return false;
-		argVars.emplace_back(argVar);
+	vstd::span<Var const*> argVars = objAlloc->AllocateSpan<Var const*>(sp.size(), [](auto sp) {})->span();
+	for (auto i : vstd::range(sp.size())) {
+		auto argVar = recorder->TryGetVar(sp[i]);
+		if (!argVar) return false;
+		argVars[i] = argVar;
 	}
 	auto retVar = PrepareVar(ret);
-	return ExecuteCustomFunc(cusIte.Value(), argVars, retVar);
+	return ExecuteCustomFunc(funcName, cusIte.Value(), argVars, retVar);
 }
-bool StatementName::ExecuteCustomFunc(const CustomFunc &func, vstd::span<const Var *> args, const Var *ret){
-	//TODO
+bool StatementName::ExecuteCustomFunc(vstd::string_view name, const CustomFunc& func, vstd::span<const Var*> args, const Var* ret) {
+	auto stmt = objAlloc->Allocate<CustomCallStmt>();
+	stmt->args = args;
+	stmt->dst = ret;
+	stmt->callable = name;
+	recorder->AddStmt(stmt);
 	return true;
 }
 void StatementName::Clear() {
 	customFuncs.Clear();
 }
+bool StatementName::GetMember(const FuncCall& funcPack) {
+	auto stmt = objAlloc->Allocate<MemberStmt>();
+	if (funcPack.args.size() <= 1) return false;
+	stmt->dst = PrepareVar(funcPack.varDesc);
+	stmt->indices = objAlloc->AllocateSpan<uint64>(funcPack.args.size() - 1, [](auto a) {})->span();
+	stmt->src = recorder->TryGetVar(funcPack.args[0]);
 
+	if (!stmt->src) return false;
+	for (auto i : vstd::range(1, funcPack.args.size())) {
+		auto num = StringUtil::StringToNumber(funcPack.args[i]).get_or<int64>(-1);
+		if (num < 0) return false;
+		stmt->indices[i - 1] = num;
+	}
+	recorder->AddStmt(stmt);
+	return true;
+}
+bool StatementName::GetIndex(const FuncCall& funcPack) {
+	auto stmt = objAlloc->Allocate<AccessStmt>();
+	if (funcPack.args.size() != 2) return false;
+	stmt->dst = PrepareVar(funcPack.varDesc);
+	stmt->src = recorder->TryGetVar(funcPack.args[0]);
+	if (!stmt->src) return false;
+	stmt->index = recorder->TryGetVar(funcPack.args[1]);
+	if (!stmt->index.valid()) {
+		auto num = StringUtil::StringToNumber(funcPack.args[1]).get_or<int64>(-1);
+		if (num < 0) return false;
+		stmt->index = num;
+	}
+	recorder->AddStmt(stmt);
+	return true;
+}
 // clang-format off
 //Builtin
 static bool Fall(StatementName& s, StatementName::FuncCall const& funcPack) { return s.BuiltInFunc(CallOp::ALL, funcPack); }
@@ -232,13 +358,23 @@ static bool Fplus(StatementName& s, StatementName::FuncCall const& funcPack) { r
 static bool Fminus(StatementName& s, StatementName::FuncCall const& funcPack) { return s.UnaryOpCall(UnaryOp::MINUS, funcPack); }
 static bool Fnot(StatementName& s, StatementName::FuncCall const& funcPack) { return s.UnaryOpCall(UnaryOp::NOT, funcPack); }
 static bool Fbit_not(StatementName& s, StatementName::FuncCall const& funcPack) { return s.UnaryOpCall(UnaryOp::BIT_NOT, funcPack); }
+// Custom
+static bool Fget_member(StatementName& s, StatementName::FuncCall const& funcPack){ return s.GetMember(funcPack);}
+static bool Fget_index(StatementName& s, StatementName::FuncCall const& funcPack){ return s.GetIndex(funcPack);}
 
 void StatementName::Init() {
 #define REGIST_FUNC(FUNC, NAME) funcs.Emplace(#NAME##_sv, FUNC)
 #define REGIST_NAME(TYPE, ENUM, NAME) TYPE.Emplace(ENUM, #NAME##_sv);
 	//Builtin
+	REGIST_FUNC(Fget_member, get_member);
+	REGIST_FUNC(Fget_index, get_index);
+	REGIST_FUNC(Else, else);
 	REGIST_FUNC(If, if);
 	REGIST_FUNC(EndIf, endif);
+	REGIST_FUNC(Switch, switch);
+	REGIST_FUNC(EndSwitch, endswitch);
+	REGIST_FUNC(Case, case);
+	REGIST_FUNC(EndCase, endcase);
 	REGIST_FUNC(Fall, all);
 	REGIST_FUNC(Fany, any);
 	REGIST_FUNC(Fselect, select);
@@ -500,4 +636,4 @@ void StatementName::Init() {
 #undef REGIST_NAME
 	// clang-format on
 }
-}// namespace luisa::ir
+}// namespace toolhub::ir

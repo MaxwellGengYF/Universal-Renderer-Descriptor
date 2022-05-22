@@ -3,22 +3,24 @@
 #include <ir/api/statement.h>
 #include <Utility/ObjectStackAlloc.h>
 #include <ir/parser/type_descriptor.h>
-namespace luisa::ir {
+namespace toolhub::ir {
 class Parser;
 class CommandRecorder;
 class StatementName {
 	Var const* PrepareVar(VarDescriptor const& varDesc);
+
 public:
 	struct CustomFunc {
 		Type const* targetRetType;
 		vstd::vector<Type const*> argsType;
 	};
-	bool ExecuteCustomFunc(CustomFunc const& func, vstd::span<Var const*> args, Var const* ret);
+	bool ExecuteCustomFunc(vstd::string_view funcName, CustomFunc const& func, vstd::span<Var const*> args, Var const* ret);
 
 	// VarName, TypeName
 	Parser* parser;
 	CommandRecorder* recorder;
 	vstd::ObjectStackAlloc* objAlloc;
+	vstd::vector<Callable*> callables;
 	using ArgSpan = vstd::span<vstd::string_view>;
 	struct FuncCall {
 		VarDescriptor varDesc;
@@ -33,11 +35,15 @@ public:
 	NameMap<BinaryOp> binaryMap;
 	NameMap<CallOp> callMap;
 	void Init();
-	bool operator()(vstd::string_view funcName, VarDescriptor const& ret, ArgSpan sp);
+	bool Run(vstd::string_view funcName, VarDescriptor const& ret, ArgSpan sp);
 	bool BuiltInFunc(CallOp callOp, FuncCall const& funcPack);
 	bool BinaryOpCall(BinaryOp op, FuncCall const& funcPack);
 	bool UnaryOpCall(UnaryOp op, FuncCall const& funcPack);
-	bool AddCustomFunc(TypeDescriptor ret, vstd::string_view funcName, vstd::span<TypeDescriptor> args);
+	bool GetMember(FuncCall const& funcPack);
+	bool GetIndex(FuncCall const& funcPack);
+	Callable const* AddCustomFunc(TypeDescriptor ret, vstd::string_view funcName, 
+	vstd::span<std::pair<vstd::string_view, Var const*>> args,
+	vstd::vector<Statement const*>&& stmts);
 	void Clear();
 };
-}// namespace luisa::ir
+}// namespace toolhub::ir
