@@ -66,4 +66,11 @@ void CodegenUtil::PrintConstArray(ConstantVar const& var, vstd::string& str) {
 		}
 	});
 }
+void CodegenUtil::PrintLiteralValue(LiteralVar::Value const& value, vstd::string& str) {
+	value.multi_visit(
+		[&](auto&& v) { vstd::to_string(v, str); },
+		[&](auto&& v) { vstd::to_string(v, str); },
+		[&](auto&& v) { str << (v ? "true" : "false"); });
+}
+
 }// namespace toolhub::ir

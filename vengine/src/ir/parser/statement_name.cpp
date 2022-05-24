@@ -13,16 +13,8 @@ static bool If(StatementName& s, StatementName::FuncCall const& funcPack) {
 	auto scope = static_cast<IfScope*>(recorder.PushStack(ScopeTag::If));
 	if (funcPack.args.size() != 1) return false;
 	auto strv = funcPack.args[0];
-	if (strv == "true"_sv) {
-		scope->condition = true;
-	} else if (strv == "false"_sv) {
-		scope->condition = false;
-	} else {
-		scope->condition = recorder.TryGetVar(funcPack.args[0]);
-	}
-	if (!scope->condition.valid())
-		return false;
-	return true;
+	scope->condition = recorder.TryGetVar(funcPack.args[0]);
+	return scope->condition;
 }
 static bool EndIf(StatementName& s, StatementName::FuncCall const& funcPack) {
 	auto&& recorder = *s.recorder;
@@ -40,6 +32,23 @@ static bool Else(StatementName& s, StatementName::FuncCall const& funcPack) {
 		auto scope = static_cast<IfScope*>(last);
 		if (!scope->state) return false;
 		scope->state = false;
+		return true;
+	}
+	return false;
+}
+static bool While(StatementName& s, StatementName::FuncCall const& funcPack) {
+	auto&& recorder = *s.recorder;
+	auto scope = static_cast<LoopScope*>(recorder.PushStack(ScopeTag::Loop));
+	if (funcPack.args.size() != 1) return false;
+	auto strv = funcPack.args[0];
+	scope->condition = recorder.TryGetVar(funcPack.args[0]);
+	return true;
+}
+static bool EndWhile(StatementName& s, StatementName::FuncCall const& funcPack) {
+	auto&& recorder = *s.recorder;
+	auto last = recorder.LastStack();
+	if (last && last->tag() == ScopeTag::Loop) {
+		recorder.PopStack();
 		return true;
 	}
 	return false;
@@ -83,6 +92,30 @@ static bool EndCase(StatementName& s, StatementName::FuncCall const& funcPack) {
 	}
 	return false;
 }
+static bool Break(StatementName& s, StatementName::FuncCall const& funcPack) {
+	auto last = s.recorder->LastStack();
+	auto stmt = s.objAlloc->Allocate<BreakStmt>();
+	last->emplace(stmt);
+	return true;
+}
+static bool Continue(StatementName& s, StatementName::FuncCall const& funcPack) {
+	auto last = s.recorder->LastStack();
+	auto stmt = s.objAlloc->Allocate<ContinueStmt>();
+	last->emplace(stmt);
+	return true;
+}
+static bool Return(StatementName& s, StatementName::FuncCall const& funcPack) {
+	auto last = s.recorder->LastStack();
+	auto stmt = s.objAlloc->Allocate<ReturnStmt>();
+	if (funcPack.args.size() != 1) return false;
+	auto strv = funcPack.args[0];
+	auto var = s.recorder->TryGetVar(strv);
+	if (!var) return false;
+	stmt->retValue = var;
+	last->emplace(stmt);
+	return true;
+}
+
 Var const* StatementName::PrepareVar(VarDescriptor const& varDesc) {
 	Var const* retVar = nullptr;
 	if (!varDesc.varName.empty()) {
@@ -145,7 +178,7 @@ bool StatementName::UnaryOpCall(UnaryOp op, FuncCall const& funcPack) {
 	//TODO: type check
 	return true;
 }
-Callable const*  StatementName::AddCustomFunc(
+Callable const* StatementName::AddCustomFunc(
 	TypeDescriptor ret,
 	vstd::string_view funcName,
 	vstd::span<std::pair<vstd::string_view, Var const*>> args,
@@ -153,17 +186,23 @@ Callable const*  StatementName::AddCustomFunc(
 	Type const* retType = nullptr;
 	if (!ret.typeName.empty())
 		retType = parser->GetType(ret.typeName, ret.typeArrSize);
-	auto ite = customFuncs.Emplace(funcName);
-	auto&& d = ite.Value();
+	auto idx = customFuncs.size();
+	customFuncIndices.Emplace(funcName, idx);
+	auto&& d = customFuncs.emplace_back();
+	d.index = idx;
 	d.targetRetType = retType;
 	for (auto&& i : args) {
-		d.argsType.emplace_back(i.second->type);
+		auto t = i.second->type;
+		d.argsType.emplace_back(t);
 	}
 	auto callable = objAlloc->Allocate<Callable>();
-	callable->name = funcName;
+	callable->index = idx;
 	callable->arguments = objAlloc->AllocateSpan<Var const*>(args.size(), [](auto v) {})->span();
 	callable->statements = std::move(stmts);
-	memcpy(callable->arguments.data(), args.data(), args.size_bytes());
+	callable->retType = retType;
+	for (auto i : vstd::range(args.size())) {
+		callable->arguments[i] = args[i].second;
+	}
 	return callable;
 }
 bool StatementName::Run(vstd::string_view funcName, VarDescriptor const& ret, ArgSpan sp) {
@@ -174,7 +213,7 @@ bool StatementName::Run(vstd::string_view funcName, VarDescriptor const& ret, Ar
 		return v(*this, FuncCall{ret, sp});
 	}
 	//Try custom
-	auto cusIte = customFuncs.Find(funcName);
+	auto cusIte = customFuncIndices.Find(funcName);
 	if (!cusIte) return false;
 	vstd::span<Var const*> argVars = objAlloc->AllocateSpan<Var const*>(sp.size(), [](auto sp) {})->span();
 	for (auto i : vstd::range(sp.size())) {
@@ -183,18 +222,21 @@ bool StatementName::Run(vstd::string_view funcName, VarDescriptor const& ret, Ar
 		argVars[i] = argVar;
 	}
 	auto retVar = PrepareVar(ret);
-	return ExecuteCustomFunc(funcName, cusIte.Value(), argVars, retVar);
+	return ExecuteCustomFunc(funcName, customFuncs[cusIte.Value()], argVars, retVar);
 }
 bool StatementName::ExecuteCustomFunc(vstd::string_view name, const CustomFunc& func, vstd::span<const Var*> args, const Var* ret) {
 	auto stmt = objAlloc->Allocate<CustomCallStmt>();
 	stmt->args = args;
 	stmt->dst = ret;
-	stmt->callable = name;
+	auto ite = customFuncIndices.Find(name);
+	if(!ite) return false;
+	stmt->callableIndex = ite.Value();
 	recorder->AddStmt(stmt);
 	return true;
 }
 void StatementName::Clear() {
-	customFuncs.Clear();
+	customFuncs.clear();
+	customFuncIndices.Clear();
 }
 bool StatementName::GetMember(const FuncCall& funcPack) {
 	auto stmt = objAlloc->Allocate<MemberStmt>();
@@ -375,6 +417,10 @@ void StatementName::Init() {
 	REGIST_FUNC(EndSwitch, endswitch);
 	REGIST_FUNC(Case, case);
 	REGIST_FUNC(EndCase, endcase);
+	REGIST_FUNC(Break, break);
+	REGIST_FUNC(Continue, continue);
+	REGIST_FUNC(While, while);
+	REGIST_FUNC(EndWhile, endwhile);
 	REGIST_FUNC(Fall, all);
 	REGIST_FUNC(Fany, any);
 	REGIST_FUNC(Fselect, select);

@@ -1,18 +1,9 @@
 #pragma once
-#include <glm/Include.h>
+#include <Renderer/Camera.h>
 #include <taskflow/taskflow.hpp>
 #include <shared_mutex>
-using namespace glm;
 namespace toolhub::renderer {
 
-struct TRS {
-	vec3 position;
-	vec3 right;
-	vec3 up;
-	vec3 forward;
-	vec3 bboxCenter;
-	vec3 bboxExtent;
-};
 class FrustumCulling : public vstd::IOperatorNewBase {
 public:
 	struct ShadowmapData {

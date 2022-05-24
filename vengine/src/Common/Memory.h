@@ -31,6 +31,7 @@ struct allocator {
 };
 }// namespace vstd
 template<typename T, typename... Args>
+requires(std::is_constructible_v<T, Args...>)
 inline T* vengine_new(Args&&... args) noexcept {
 	T* tPtr = (T*)vengine_malloc(sizeof(T));
 	new (tPtr) T(std::forward<Args>(args)...);

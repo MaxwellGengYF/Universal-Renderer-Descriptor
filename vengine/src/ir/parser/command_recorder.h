@@ -28,7 +28,7 @@ struct IfScope : public Scope {
 	vstd::vector<Statement const*> trueStmts;
 	vstd::vector<Statement const*> falseStmts;
 	bool state = true;
-	vstd::variant<Var const*, bool> condition;
+	Var const* condition;
 	ScopeTag tag() const override { return ScopeTag::If; }
 	bool emplace(Statement const* stmt) override;
 	Statement const* ToStatement(vstd::ObjectStackAlloc& alloc) override;

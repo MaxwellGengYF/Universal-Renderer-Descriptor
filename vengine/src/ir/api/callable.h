@@ -6,6 +6,7 @@ class Callable : public Allocatable{
 public:
     vstd::vector<Statement const *> statements;
     vstd::span<Var const*> arguments;
-    vstd::string name;
+    Type const* retType;
+    size_t index;
 };
 }// namespace toolhub::ir

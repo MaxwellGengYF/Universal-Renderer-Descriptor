@@ -16,7 +16,7 @@ def callable_fuck(): int[5]{
 
 }
 
-def callable_0 (tt: T0&): void {
+def callable_0 (tt: T0&) {
 	v2 = get_member(tt, 0, 2, 3): int
 	v3 = get_member(tt, 0, 3): int
 	v4 = add(v2, v2): int

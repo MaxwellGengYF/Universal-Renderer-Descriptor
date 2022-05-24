@@ -77,7 +77,7 @@ struct Var : public Allocatable {
 	virtual ~Var() = default;
 };
 struct LiteralVar : public Var {
-	using Value = detail::make_literal_value_t<basic_types>;
+	using Value = vstd::variant<double, int64, bool>;
 	Value literalValue;
 	Tag tag() const override { return Tag::Literal; }
 };

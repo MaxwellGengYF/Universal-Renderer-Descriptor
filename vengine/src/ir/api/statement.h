@@ -134,13 +134,14 @@ enum struct CallOp : uint32_t {
 	TRACE_CLOSEST,
 	TRACE_ANY
 };
+static constexpr size_t CallOpCount = static_cast<size_t>(CallOp::TRACE_ANY) + 1;
 enum struct UnaryOp : uint32_t {
 	PLUS,
 	MINUS,	// +x, -x
 	NOT,	// !x
 	BIT_NOT,// ~x
 };
-
+static constexpr size_t UnaryOpCount = static_cast<size_t>(UnaryOp::BIT_NOT) + 1;
 /**
  * @brief Enum of binary operations
  * 
@@ -169,6 +170,8 @@ enum struct BinaryOp : uint32_t {
 	EQUAL,
 	NOT_EQUAL
 };
+static constexpr size_t BinaryOpCount = static_cast<size_t>(BinaryOp::NOT_EQUAL) + 1;
+
 struct Var;
 struct LiteralVar;
 struct Statement : public Allocatable {
@@ -208,6 +211,7 @@ struct BinaryStmt : public Statement {
 };
 
 struct ReturnStmt : public Statement {
+	Var const* retValue;
 	Tag tag() const override { return Tag::Return; }
 };
 struct BreakStmt : public Statement {
@@ -224,7 +228,7 @@ struct BuiltinCallStmt : public Statement {
 };
 struct CustomCallStmt : public Statement {
 	Var const* dst;
-	vstd::string callable;
+	size_t callableIndex;
 	vstd::span<Var const*> args;
 	Tag tag() const override { return Tag::CustomCall; }
 };
@@ -243,7 +247,7 @@ struct AccessStmt : public Statement {
 	Tag tag() const override { return Tag::Access; }
 };
 struct IfStmt : public Statement {
-	vstd::variant<Var const*, bool> condition;
+	Var const* condition;
 	vstd::vector<Statement const*> trueField;
 	vstd::vector<Statement const*> falseField;
 	Tag tag() const override { return Tag::If; }

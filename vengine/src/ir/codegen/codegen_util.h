@@ -9,5 +9,6 @@ class CodegenUtil {
 
 public:
 	static void PrintConstArray(ConstantVar const& var, vstd::string& str);
+	static void PrintLiteralValue(LiteralVar::Value const& value, vstd::string& str);
 };
 }// namespace toolhub::ir

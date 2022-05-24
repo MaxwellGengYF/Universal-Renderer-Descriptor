@@ -2,6 +2,7 @@
 #include "Common/AllocateType.h"
 #include "Common/vector.h"
 #include <ir/parser/command_recorder.h>
+#include <Utility/StringUtility.h>
 namespace toolhub::ir {
 void CommandRecorder::AddStmt(Statement const* stmt) {
 	LastStack()->emplace(stmt);
@@ -33,11 +34,11 @@ Scope* CommandRecorder::PushStack(ScopeTag tag) {
 bool CommandRecorder::PopStack() {
 	if (scopeStack.size() <= 1) return false;
 	auto scope = scopeStack.erase_last();
-	if(!scopeStack.empty()){
+	if (!scopeStack.empty()) {
 		auto&& last = *scopeStack.last();
 		auto stmt = scope->ToStatement(*objAlloc);
-		if(stmt){
-			if(!last->emplace(stmt)) return false;
+		if (stmt) {
+			if (!last->emplace(stmt)) return false;
 		}
 	}
 	return true;
@@ -66,7 +67,23 @@ Var const* CommandRecorder::TryGetVar(vstd::string_view name) const {
 	}
 	auto globalResult = globalVarMap.Find(name);
 	if (globalResult) return globalResult.Value();
-	return nullptr;
+	auto num = StringUtil::StringToNumber(name);
+	if (num.valid()) {
+		auto literalVar = objAlloc->Allocate<LiteralVar>();
+		num.visit([&](auto&& v) {
+			literalVar->literalValue = v;
+		});
+		return literalVar;
+	} else if (name == "true") {
+		auto literalVar = objAlloc->Allocate<LiteralVar>();
+		literalVar->literalValue = true;
+		return literalVar;
+	} else if (name == "false") {
+		auto literalVar = objAlloc->Allocate<LiteralVar>();
+		literalVar->literalValue = false;
+		return literalVar;
+	} else
+		return nullptr;
 }
 void CommandRecorder::AddVar(Var const* var, vstd::string_view name) {
 	(*scopeStack.last())->varMap.Emplace(name, var);
@@ -98,12 +115,12 @@ Statement const* IfScope::ToStatement(vstd::ObjectStackAlloc& alloc) {
 	auto stmt = alloc.Allocate<IfStmt>();
 	stmt->condition = condition;
 	stmt->trueField = std::move(trueStmts);
-	stmt->falseField= std::move(falseStmts);
+	stmt->falseField = std::move(falseStmts);
 	return stmt;
 }
 Statement const* SwitchScope::ToStatement(vstd::ObjectStackAlloc& alloc) {
 	auto stmt = alloc.Allocate<SwitchStmt>();
-	stmt->cases.push_back_func(cases.size(), [&](size_t i){
+	stmt->cases.push_back_func(cases.size(), [&](size_t i) {
 		auto&& c = cases[i];
 		SwitchStmt::Case dst;
 		dst.first = c->index;
@@ -112,19 +129,19 @@ Statement const* SwitchScope::ToStatement(vstd::ObjectStackAlloc& alloc) {
 	});
 	return stmt;
 }
-Statement const* LoopScope::ToStatement(vstd::ObjectStackAlloc &alloc){
+Statement const* LoopScope::ToStatement(vstd::ObjectStackAlloc& alloc) {
 	auto stmt = alloc.Allocate<LoopStmt>();
 	stmt->condition = condition;
 	stmt->commands = std::move(stmts);
-	return stmt;	
+	return stmt;
 }
-vstd::vector<Statement const*>&& CommandRecorder::GetStatements(){
+vstd::vector<Statement const*>&& CommandRecorder::GetStatements() {
 	auto funcScope = static_cast<FuncScope*>(scopeStack[0].get());
 	return std::move(funcScope->stmts);
 }
-void CommandRecorder::AddArguments(vstd::span<std::pair<vstd::string_view, const Var *>> vars){
+void CommandRecorder::AddArguments(vstd::span<std::pair<vstd::string_view, const Var*>> vars) {
 	auto&& varMap = static_cast<FuncScope*>(scopeStack[0].get())->varMap;
-	for(auto&& i : vars){
+	for (auto&& i : vars) {
 		varMap.Emplace(i.first, i.second);
 	}
 }

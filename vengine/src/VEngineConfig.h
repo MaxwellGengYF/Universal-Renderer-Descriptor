@@ -24,8 +24,10 @@
 #endif
 #if defined(_DEBUG)
 #define DEBUG
-#endif
+#define _ITERATOR_DEBUG_LEVEL 2
+#else
 #define _ITERATOR_DEBUG_LEVEL 0
+#endif
 #define _SCL_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
 #define _CONSOLE

@@ -2,6 +2,7 @@
 #include <ir/parser/type_descriptor.h>
 #include <ir/parser/parser_utility.h>
 #include <ir/parser/parser.h>
+#include <Common/functional.h>
 namespace toolhub::ir {
 #define JUMP_SPACE glb.space.GetNext(ite)
 enum class CharState : uint8_t {
@@ -33,6 +34,7 @@ public:
 	StateRecorder<bool> space;
 	StateRecorder<CharState> charTypes;
 	vstd::HashMap<vstd::string_view, ParserState> parserState;
+	vstd::HashMap<vstd::string_view, vstd::function<void(Type*)>> resTypeFuncs;
 	bool inited = false;
 	static void InitSpace(typename StateRecorder<bool>::ArrayType& ptr) {
 		ptr[' '] = true;
@@ -73,6 +75,12 @@ public:
 		parserState.Emplace("def", ParserState::Function);
 		parserState.Emplace("const", ParserState::Const);
 		parserState.Emplace("shared", ParserState::Shared);
+		resTypeFuncs.Emplace("Texture", [](Type* t) {
+			t->tag = Type::Tag::Texture;
+		});
+		resTypeFuncs.Emplace("Buffer", [](Type* t) {
+			t->tag = Type::Tag::Buffer;
+		});
 	}
 };
 static ParserGlobalData glb;
@@ -123,14 +131,24 @@ bool Parser::ParseType(TypeDescriptor& result, char const*& ite) {
 Type const* Parser::GetType(vstd::string_view typeNameStr, size_t arraySize) {
 	auto GetMember = [&](vstd::HashCache<vstd::string_view> const& typeName) -> Type const* {
 		auto member = Kernel::GetBuiltinType(typeName);
-		if (member == nullptr) {
-			auto customIte = customTypes.Find(typeName);
-			if (!customIte) {
-				return nullptr;
-			}
-			member = customIte.Value();
+		if (member != nullptr)
+			return member;
+		auto customIte = customTypes.Find(typeName);
+		if (customIte)
+			return customIte.Value();
+		auto splitIte = StringUtil::Split(typeNameStr, '_').begin();
+		if (splitIte == vstd::IteEndTag()) return nullptr;
+		auto ite = glb.resTypeFuncs.Find(*splitIte);
+		auto tp = kernel->allocator.Allocate<Type>();
+		if (ite) {
+			ite.Value()(tp);
 		}
-		return member;
+		++splitIte;
+		if (splitIte == vstd::IteEndTag()) return nullptr;
+		tp->element = GetType(*splitIte, 0);
+		++splitIte;
+		if (splitIte != vstd::IteEndTag()) return nullptr;
+		return tp;
 	};
 	vstd::HashCache<vstd::string_view> typeName = typeNameStr;
 	auto&& typeArraySize = arraySize;
@@ -237,6 +255,7 @@ bool Parser::ParseStruct(char const*& ite) {
 	structType->tag = Type::Tag::Structure;
 	structType->members = {structMembers,
 						   typeStrv.size()};
+	structType->alignment = alignSize;
 
 	for (auto i : vstd::range(typeStrv.size())) {
 		auto type = GetType(typeStrv[i].first, typeStrv[i].second);
@@ -314,21 +333,19 @@ bool Parser::ParseFunction(char const*& ite) {
 		}
 	};
 	JUMP_SPACE;
-	if (*ite != ':') {
-		errorMsg = "require ':' after function declare";
-		return false;
-	}
-	++ite;
-	JUMP_SPACE;
-	if (!IsKeyword(glb.charTypes.Get(*ite))) {
-		errorMsg = "Invalid return type";
-		return false;
-	}
 	TypeDescriptor returnTypeName;
-	if (!ParseType(returnTypeName, ite)) {
-		return false;
+	if (*ite == ':') {
+		++ite;
+		JUMP_SPACE;
+		if (!IsKeyword(glb.charTypes.Get(*ite))) {
+			errorMsg = "Invalid return type";
+			return false;
+		}
+		if (!ParseType(returnTypeName, ite)) {
+			return false;
+		}
+		JUMP_SPACE;
 	}
-	JUMP_SPACE;
 	if (*ite != '{') {
 		errorMsg = "require '{' after function return type";
 		return false;
@@ -502,7 +519,8 @@ bool Parser::ParseConst(char const*& ite) {
 		errorMsg = "literal value more than expected";
 		return false;
 	}
-	auto&& result = kernel->constants.emplace_back();
+	auto result = kernel->allocator.Allocate<ConstantVar>();
+	kernel->constants.emplace_back(result);
 	auto Set = [&](size_t idx, auto& result) {
 		arrayResult[idx].visit([&](auto&& v) {
 			result = static_cast<std::remove_cvref_t<decltype(result)>>(v);
@@ -513,7 +531,7 @@ bool Parser::ParseConst(char const*& ite) {
 		for (auto i : vstd::range(sp.size())) {
 			Set(i, sp[i]);
 		}
-		result.data = sp;
+		result->data = sp;
 	};
 	auto SetSpanVector = [&]<typename Vec>(size_t dim) {
 		auto sp = kernel->allocator.AllocateSpan<Vec>(arrayResult.size() / dim, [](auto sp) {})->span();
@@ -525,7 +543,7 @@ bool Parser::ParseConst(char const*& ite) {
 				++idx;
 			}
 		}
-		result.data = sp;
+		result->data = sp;
 	};
 	auto SetSpanMatrix = [&]<typename Mat>(size_t dim) {
 		auto sp = kernel->allocator.AllocateSpan<Mat>(arrayResult.size() / (dim * dim), [](auto sp) {})->span();
@@ -539,9 +557,9 @@ bool Parser::ParseConst(char const*& ite) {
 				}
 			}
 		}
-		result.data = sp;
+		result->data = sp;
 	};
-	result.type = type;
+	result->type = type;
 	if (type->tag == Type::Tag::Array)
 		type = type->element;
 	switch (type->tag) {
