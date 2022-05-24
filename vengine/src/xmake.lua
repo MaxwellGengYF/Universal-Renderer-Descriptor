@@ -59,11 +59,10 @@ BuildProject({
     files = {"Common/*.cpp", "Utility/*.cpp", "taskflow/src.cpp"},
     includePaths = IncludePaths,
     unityBuildBatch = 4,
-    exception = true
+    exception = true,
+    rules = "copy_to_build"
 })
-if is_plat("windows") then
-    add_links("kernel32", "User32", "Gdi32", "Shell32")
-end
+
 -- VEngine_Compute
 BuildProject({
     projectName = "VEngine_Compute",
@@ -126,9 +125,9 @@ BuildProject({
     includePaths = IncludePaths,
     depends = {"VEngine_DLL"},
     unityBuildBatch = 4,
-    exception = true
+    exception = true,
+    links = "lib/dxcompiler"
 })
-add_links("lib/dxcompiler")
 -- VEngine_DirectX
 BuildProject({
     projectName = "VEngine_DirectX",
@@ -140,11 +139,15 @@ BuildProject({
     includePaths = IncludePaths,
     depends = {"VEngine_Graphics"},
     unityBuildBatch = 4,
-    exception = true
+    exception = true,
+    links = function()
+        if is_plat("windows") then
+            return {"DXGI", "D3D12"}
+        end
+        return nil
+    end
 })
-if is_plat("windows") then
-    add_links("DXGI", "D3D12")
-end
+
 -- VEngine_IR
 if BuildBinary.IR == true then
     BuildProject({
@@ -170,12 +173,10 @@ if BuildBinary.Vulkan == true then
         files = {"VulkanImpl/*.cpp"},
         includePaths = {"./", "C:/VulkanSDK/1.3.204.0/Include/"},
         depends = {"VEngine_DLL"},
-        exception = true
+        exception = true,
+        links = {"C:/VulkanSDK/1.3.204.0/Lib/vulkan-1", "lib/glfw3dll", "lib/glfw3", "User32", "kernel32", "Gdi32",
+                 "Shell32"}
     })
-    add_links("C:/VulkanSDK/1.3.204.0/Lib/vulkan-1", "lib/glfw3dll", "lib/glfw3")
-    if is_plat("windows") then
-        add_links("User32", "kernel32", "Gdi32", "Shell32")
-    end
 end
 -- File refresher
 if BuildBinary.FileRefresher == true then
@@ -191,8 +192,8 @@ if BuildBinary.FileRefresher == true then
         exception = true
     })
 end
+-- FrustumCulling
 if BuildBinary.FrustumCulling == true then
-    -- FrustumCulling
     BuildProject({
         projectName = "FrustumCulling",
         projectType = function()
@@ -208,9 +209,8 @@ if BuildBinary.FrustumCulling == true then
         files = {"Renderer/*.cpp"},
         includePaths = IncludePaths,
         depends = {"VEngine_DLL"},
-        exception = true
+        exception = true,
+        rules = "copy_to_unity"
     })
-    add_rules("copy_to_unity")
 end
 
-add_rules("copy_to_build")

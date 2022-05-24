@@ -7,12 +7,14 @@ function GetValue(funcOrValue)
     end
 end
 function Execute(map, func)
-    if map ~= nil then
-        func(GetValue(map))
+    value = GetValue(map)
+    if value ~= nil then
+        func(value)
     end
 end
 function SetException(enableException)
-    if (enableException ~= nil) and (GetValue(enableException)) then
+    value = GetValue(enableException)
+    if (value ~= nil) and value then
         add_cxflags("/EHsc", {
             force = true
         })
@@ -30,6 +32,8 @@ function BuildProject(config)
     Execute(config.files, add_files)
     Execute(config.includePaths, add_includedirs)
     Execute(config.depends, add_deps)
+    Execute(config.links, add_links)
+    Execute(config.rules, add_rules)
     unityBuildBatch = GetValue(config.unityBuildBatch)
     if (unityBuildBatch ~= nil) and (unityBuildBatch > 0) then
         add_rules("c.unity_build", {

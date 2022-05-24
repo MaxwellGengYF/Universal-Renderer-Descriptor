@@ -13,11 +13,12 @@ QuadNode::QuadNode(
 }
 void QuadTree::CombineTree(QuadNode* node) {
 	if (node->isLeaf) return;
+	node->isLeaf = true;
 	for (auto&& i : node->childNodes) {
 		CombineTree(i);
 		nodePool.Delete(i);
+		i = nullptr;
 	}
-	memset(node->childNodes, 0, sizeof(size_t) * QuadNode::CHILD_COUNT);
 }
 void QuadTree::SeparateTree(QuadNode* node) {
 	if (!node->isLeaf) return;
@@ -56,7 +57,7 @@ void QuadTree::UpdateTree() {
 		Stop
 	};
 	auto CompareDistance = [&](uint layer, float dist) -> Op {
-		if (layer >= distances.size() - 1) return Op::Stop;
+		if (layer >= distances.size()) return Op::Stop;
 		if (dist > distances[layer] + crossFade)
 			return Op::Combine;
 		else if (dist < distances[layer] - crossFade)
@@ -125,6 +126,7 @@ void QuadTree::Cull(CamArgs const& cam, float minHeight, float maxHeight) {
 			cullResult.emplace_back(node);
 		}
 	};
+	CullNode(CullNode, root);
 }
 class QuadTreeTask : public vstd::IOperatorNewBase {
 	tf::Executor executor;
@@ -133,19 +135,28 @@ class QuadTreeTask : public vstd::IOperatorNewBase {
 
 public:
 	using Arg = vstd::span<std::pair<QuadTree*, CamArgs> const>;
+	vstd::vector<std::pair<QuadTree*, CamArgs>> tempArg;
 	QuadTreeTask(uint threadCount) : executor(threadCount) {}
 	void Execute(
 		float minHeight,
 		float maxHeight,
 		Arg const& span) {
+		tempArg.clear();
+		tempArg.push_back_all(span);
 		tf::Taskflow flow;
-		flow.emplace_all(
-			[&](size_t i) {
-				auto a = span[i].first;
-				a->UpdateTree();
-				a->Cull(span[i].second, minHeight, maxHeight);
-			},
-			span.size(), executor.num_workers());
+		auto taskFunc = [this, minHeight, maxHeight](size_t i) {
+			auto a = tempArg[i].first;
+			a->SetCamera(tempArg[i].second.cameraPosition);
+			a->UpdateTree();
+			a->Cull(tempArg[i].second, minHeight, maxHeight);
+		};
+		if (tempArg.size() == 1) {
+			flow.emplace([taskFunc = std::move(taskFunc)] { taskFunc(0); });
+		} else {
+			flow.emplace_all(
+				taskFunc,
+				tempArg.size(), executor.num_workers());
+		}
 		task = executor.run(std::move(flow));
 		completed = false;
 	}
@@ -164,9 +175,6 @@ VENGINE_UNITY_EXTERN void DestroyQuadTree(QuadTree* tree) {
 }
 VENGINE_UNITY_EXTERN void SetQuadTreeLODDistances(QuadTree* tree, float* distances, uint distCount, float crossFade) {
 	tree->SetLodDistance(distances, distCount, crossFade);
-}
-VENGINE_UNITY_EXTERN void SetQuadTreeCamPos(QuadTree* tree, vec3 camPos) {
-	tree->SetCamera(camPos);
 }
 VENGINE_UNITY_EXTERN QuadTreeTask* CreateTaskflowExecutor(uint threadCount) {
 	return new QuadTreeTask(threadCount);
@@ -189,6 +197,7 @@ VENGINE_UNITY_EXTERN std::pair<QuadNode const* const* const, size_t> GetQuadTree
 	return tree->GetCullResult();
 }
 }// namespace toolhub
+#ifdef _DEBUG
 int main() {
 	using namespace toolhub;
 	QuadTree quadTree(vec2(0), 64);
@@ -197,7 +206,6 @@ int main() {
 	std::pair<QuadTree*, CamArgs> cam;
 	std::initializer_list<float> dists = {5, 10, 20, 40};
 	quadTree.SetLodDistance(dists.begin(), dists.size(), 0.5);
-	quadTree.SetCamera(vec3(0));
 	cam.first = &quadTree;
 	cam.second.cameraRight = vec3(1, 0, 0);
 	cam.second.cameraUp = vec3(0, 1, 0);
@@ -210,5 +218,7 @@ int main() {
 
 	treeTask.Execute(0, 1, {&cam, 1});
 	treeTask.Complete();
+
 	return 0;
 }
+#endif

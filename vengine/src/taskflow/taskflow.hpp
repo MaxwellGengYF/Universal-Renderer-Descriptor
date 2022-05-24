@@ -7,6 +7,7 @@ namespace tf {
 template<typename C>
 requires(std::is_invocable_v<C, size_t>)
 	Task FlowBuilder::emplace_all(C&& callable, size_t task_count, size_t thread_count) {
+	thread_count = std::min(thread_count, task_count);
 	if (thread_count > 0)
 		return emplace([c = std::forward<C>(callable), task_count, thread_count](tf::Subflow& f) mutable {
 			vstd::ParallelTask task(std::move(c), task_count);
@@ -26,6 +27,7 @@ template<
 	typename C>
 requires(std::is_invocable_v<C, size_t>&& std::is_invocable_v<B>)
 	Task FlowBuilder::emplace_all(B&& beforeTask, C&& callable, size_t task_count, size_t thread_count) {
+	thread_count = std::min(thread_count, task_count);
 	if (thread_count > 0)
 		return emplace([b = std::forward<B>(beforeTask), c = std::forward<C>(callable), task_count, thread_count](tf::Subflow& f) mutable {
 			b();
