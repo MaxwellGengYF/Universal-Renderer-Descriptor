@@ -9,7 +9,6 @@ class Parser {
 	vstd::unique_ptr<Kernel> kernel;
 	vstd::HashMap<vstd::string, Type const*> customTypes;
 	StatementName stateName;
-	Type const* FindType(vstd::string_view name);
 	vstd::vector<std::pair<vstd::string_view, Var const*>> functionVars;
 	CommandRecorder recorder;
 	uint64_t varIndex = 0;
@@ -23,7 +22,7 @@ class Parser {
 
 public:
 	Parser();
-	Type const* GetType(vstd::string_view typeName, size_t arraySize);
+	Type const* GetType(TypeDescriptor const& desc);
 	bool ParseStruct(char const*& ite);
 	bool ParseFunction(char const*& ite);
 	bool ParseConst(char const*& ite);

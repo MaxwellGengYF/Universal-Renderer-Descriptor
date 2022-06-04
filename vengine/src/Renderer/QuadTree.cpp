@@ -40,9 +40,11 @@ QuadTree::QuadTree(vec2 pos, float rootSize)
 	root = nodePool.New(0, pos, rootSize);
 }
 QuadTree::~QuadTree() {}
-void QuadTree::SetLodDistance(float const* distance, size_t lodCount, float crossFade) {
+void QuadTree::SetLodDistance(std::pair<float, int> const* distance, size_t lodCount, float crossFade) {
 	distances.clear();
-	distances.push_back_all(distance, lodCount);
+	distances.push_back_func(lodCount, [&](size_t i) { return distance[i].first; });
+	instanceLayer.clear();
+	instanceLayer.push_back_func(lodCount, [&](size_t i) { return distance[i].second; });
 	this->crossFade = crossFade;
 }
 void QuadTree::SetCamera(vec3 camPos) {
@@ -57,7 +59,7 @@ void QuadTree::UpdateTree() {
 		Stop
 	};
 	auto CompareDistance = [&](uint layer, float dist) -> Op {
-		if (layer >= distances.size()) return Op::Stop;
+		if (layer >= distances.size() - 1) return Op::Stop;
 		if (dist > distances[layer] + crossFade)
 			return Op::Combine;
 		else if (dist < distances[layer] - crossFade)
@@ -117,13 +119,24 @@ void QuadTree::Cull(CamArgs const& cam, float minHeight, float maxHeight) {
 			return;
 		}
 		float halfSize = node->size * 0.5f;
-		if (MathLib::BoxIntersect(
-				vec3(node->pos.x, heightPos, node->pos.y),
+		vec2 pos = node->pos;
+		vec2 minBBox = pos - halfSize;
+		vec2 maxBBox = pos + halfSize;
+		if (minBBox.x < bbMaxPos.x
+			&& minBBox.y < bbMaxPos.y
+			&& maxBBox.x > bbMinPos.x
+			&& maxBBox.y > bbMinPos.y
+			&& MathLib::BoxIntersect(
+				vec3(pos.x, heightPos, pos.y),
 				vec3(halfSize, heightExtent, halfSize),
 				frustum,
 				minMax.first,
 				minMax.second)) {
-			cullResult.emplace_back(node);
+			uint count = instanceLayer[node->layer];
+			for (auto l : vstd::range(count)) {
+				float height = float(l) / (float(count) - 1);
+				cullResult.emplace_back(vec4(pos.x, height, pos.y, node->size));
+			}
 		}
 	};
 	CullNode(CullNode, root);
@@ -167,13 +180,17 @@ public:
 		}
 	}
 };
+VENGINE_UNITY_EXTERN void SetQuadTreeBBox(QuadTree* tree, vec2 minPos, vec2 maxPos) {
+	tree->bbMinPos = minPos;
+	tree->bbMaxPos = maxPos;
+}
 VENGINE_UNITY_EXTERN QuadTree* CreateQuadTree(vec2 pos, float rootSize) {
 	return new QuadTree(pos, rootSize);
 }
 VENGINE_UNITY_EXTERN void DestroyQuadTree(QuadTree* tree) {
 	delete tree;
 }
-VENGINE_UNITY_EXTERN void SetQuadTreeLODDistances(QuadTree* tree, float* distances, uint distCount, float crossFade) {
+VENGINE_UNITY_EXTERN void SetQuadTreeLODDistances(QuadTree* tree, std::pair<float, int>* distances, uint distCount, float crossFade) {
 	tree->SetLodDistance(distances, distCount, crossFade);
 }
 VENGINE_UNITY_EXTERN QuadTreeTask* CreateTaskflowExecutor(uint threadCount) {
@@ -193,7 +210,7 @@ VENGINE_UNITY_EXTERN void ExecuteQuadTreeTask(
 VENGINE_UNITY_EXTERN void CompleteQuadTreeTask(QuadTreeTask* executor) {
 	executor->Complete();
 }
-VENGINE_UNITY_EXTERN std::pair<QuadNode const* const* const, size_t> GetQuadTreeCullResult(QuadTree* tree) {
+VENGINE_UNITY_EXTERN std::pair<vec4 const* const, size_t> GetQuadTreeCullResult(QuadTree* tree) {
 	return tree->GetCullResult();
 }
 }// namespace toolhub
@@ -205,7 +222,7 @@ int main() {
 	QuadTreeTask::Arg arg;
 	std::pair<QuadTree*, CamArgs> cam;
 	std::initializer_list<float> dists = {5, 10, 20, 40};
-	quadTree.SetLodDistance(dists.begin(), dists.size(), 0.5);
+	//quadTree.SetLodDistance(dists.begin(), dists.size(), 0.5);
 	cam.first = &quadTree;
 	cam.second.cameraRight = vec3(1, 0, 0);
 	cam.second.cameraUp = vec3(0, 1, 0);

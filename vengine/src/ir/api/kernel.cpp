@@ -5,6 +5,7 @@ namespace detail {
 class KernelAllocator : public vstd::IOperatorNewBase {
 public:
 	vstd::HashMap<vstd::string, Type> types;
+
 	KernelAllocator() {
 		auto&& boolType = types.Emplace("bool").Value();
 		boolType.tag = Type::Tag::Bool;
@@ -26,6 +27,7 @@ public:
 		uintType.size = 4;
 		uintType.alignment = 4;
 		uintType.dimension = 1;
+
 		Type* allTypes[] = {
 			&boolType,
 			&floatType,
@@ -60,8 +62,20 @@ public:
 			mat.element = &floatType;
 			mat.tag = Type::Tag::Matrix;
 		}
+		auto t = &types.Emplace("Texture2D").Value();
+		t->tag = Type::Tag::Texture;
+		t->dimension = 2;
+		t = &types.Emplace("Texture3D").Value();
+		t->tag = Type::Tag::Texture;
+		t->dimension = 3;
+		t = &types.Emplace("Buffer").Value();
+		t->tag = Type::Tag::Buffer;
+		t = &types.Emplace("Accel").Value();
+		t->tag = Type::Tag::Accel;
+		//TODO: buffer, texture, accel
 	}
 };
+
 static vstd::unique_ptr<KernelAllocator> alloc;
 static std::mutex allocatorMtx;
 static void InitKernelAllocator() {
@@ -70,10 +84,22 @@ static void InitKernelAllocator() {
 		alloc = vstd::create_unique(new KernelAllocator());
 }
 }// namespace detail
+
 Type const* Kernel::GetBuiltinType(vstd::HashCache<vstd::string_view> const& description) {
 	auto ite = detail::alloc->types.Find(description);
 	if (!ite) return nullptr;
 	return &ite.Value();
+}
+bool Kernel::CheckValid() const {
+	// Check statement
+	for(auto&& c : callables){
+		for(auto&& s : c->statements){
+			if(!s->valid()){
+				return false;
+			}
+		}
+	}
+	return true;
 }
 
 Kernel::Kernel()
@@ -81,6 +107,5 @@ Kernel::Kernel()
 	detail::InitKernelAllocator();
 }
 Kernel::~Kernel() {
-	detail::InitKernelAllocator();
 }
 }// namespace toolhub::ir

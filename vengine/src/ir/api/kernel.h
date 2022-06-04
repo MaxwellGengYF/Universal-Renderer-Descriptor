@@ -10,6 +10,7 @@ public:
 	vstd::span<Type const*> types;
 	vstd::vector<ConstantVar const*> constants;
 	Callable const* kernel;
+	bool CheckValid() const;
 	Kernel();
 	~Kernel();
 };

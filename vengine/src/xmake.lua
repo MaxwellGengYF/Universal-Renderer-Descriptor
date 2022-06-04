@@ -1,10 +1,14 @@
-BuildBinary = {
-    FileRefresher = false,
-    FrustumCulling = true,
-    TextureTools = false,
-    IR = false,
-    Vulkan = false
-}
+-- BuildBinary = 'FileRefresher'
+-- BuildBinary = 'FrustumCulling'
+-- BuildBinary = 'TextureTools'
+BuildBinary = 'VEngine_IR'
+-- BuildBinary = 'VEngine_Vulkan'
+function ProjFilter(name)
+    if BuildBinary == name then
+        return name
+    end
+    return nil
+end
 function Macro(tab)
     if is_mode("release") then
         table.insert(tab, "NDEBUG")
@@ -13,6 +17,7 @@ function Macro(tab)
     end
     return tab
 end
+IncludePaths = {"./"}
 
 rule("copy_to_unity")
 after_build(function(target)
@@ -25,7 +30,7 @@ after_build(function(target)
 end)
 rule("copy_to_build")
 after_build(function(target)
-    build_path = nil
+    local build_path = nil
     if is_mode("release") then
         build_path = "$(buildir)/windows/x64/release/"
     else
@@ -34,7 +39,6 @@ after_build(function(target)
     os.cp("bin/*.dll", build_path)
 end)
 
-IncludePaths = {"./"}
 -- Abseil
 --[[
 BuildProject({
@@ -101,19 +105,19 @@ BuildProject({
     exception = true
 })
 -- TextureTools
-if BuildBinary.TextureTools == true then
-    BuildProject({
-        projectName = "TextureTools",
-        projectType = "shared",
-        macros = function()
-            return Macro({"TEXTOOLS_EXPORT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
-        end,
-        files = {"TextureTools/*.cpp"},
-        depends = {"VEngine_DLL", "stb"},
-        includePaths = IncludePaths,
-        exception = true
-    })
-end
+BuildProject({
+    projectName = function()
+        return ProjFilter("TextureTools")
+    end,
+    projectType = "binary",
+    macros = function()
+        return Macro({"TEXTOOLS_EXPORT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    end,
+    files = {"TextureTools/*.cpp"},
+    depends = {"VEngine_DLL", "stb"},
+    includePaths = IncludePaths,
+    exception = true
+})
 -- VEngine_Graphics
 BuildProject({
     projectName = "VEngine_Graphics",
@@ -149,68 +153,68 @@ BuildProject({
 })
 
 -- VEngine_IR
-if BuildBinary.IR == true then
-    BuildProject({
-        projectName = "VEngine_IR",
-        projectType = "binary",
-        macros = function()
-            return Macro({"VENGINE_IR_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
-        end,
-        files = {"ir/**.cpp"},
-        includePaths = IncludePaths,
-        depends = {"VEngine_DLL"},
-        exception = true
-    })
-end
+BuildProject({
+    projectName = function()
+        return ProjFilter("VEngine_IR")
+    end,
+    projectType = "binary",
+    macros = function()
+        return Macro({"VENGINE_IR_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    end,
+    files = {"ir/**.cpp"},
+    includePaths = IncludePaths,
+    depends = {"VEngine_DLL"},
+    exception = true
+})
 -- VEngine_Vulkan
-if BuildBinary.Vulkan == true then
-    BuildProject({
-        projectName = "VEngine_Vulkan",
-        projectType = "shared",
-        macros = function()
-            return Macro({"VENGINE_VULKAN_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
-        end,
-        files = {"VulkanImpl/*.cpp"},
-        includePaths = {"./", "C:/VulkanSDK/1.3.204.0/Include/"},
-        depends = {"VEngine_DLL"},
-        exception = true,
-        links = {"C:/VulkanSDK/1.3.204.0/Lib/vulkan-1", "lib/glfw3dll", "lib/glfw3", "User32", "kernel32", "Gdi32",
-                 "Shell32"}
-    })
-end
+BuildProject({
+    projectName = function()
+        return ProjFilter("VEngine_Vulkan")
+    end,
+    projectType = "shared",
+    macros = function()
+        return Macro({"VENGINE_VULKAN_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    end,
+    files = {"VulkanImpl/*.cpp"},
+    includePaths = {"./", "C:/VulkanSDK/1.3.204.0/Include/"},
+    depends = {"VEngine_DLL"},
+    exception = true,
+    links = {"C:/VulkanSDK/1.3.204.0/Lib/vulkan-1", "lib/glfw3dll", "lib/glfw3", "User32", "kernel32", "Gdi32",
+             "Shell32"}
+})
 -- File refresher
-if BuildBinary.FileRefresher == true then
-    BuildProject({
-        projectName = "FileRefresher",
-        projectType = "binary",
-        macros = function()
-            return Macro({"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
-        end,
-        files = {"CPPBuilder/FileRefresher.cpp"},
-        includePaths = IncludePaths,
-        depends = {"VEngine_DLL"},
-        exception = true
-    })
-end
+BuildProject({
+    projectName = function()
+        return ProjFilter("FileRefresher")
+    end,
+    projectType = "binary",
+    macros = function()
+        return Macro({"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    end,
+    files = {"CPPBuilder/FileRefresher.cpp"},
+    includePaths = IncludePaths,
+    depends = {"VEngine_DLL"},
+    exception = true
+})
 -- FrustumCulling
-if BuildBinary.FrustumCulling == true then
-    BuildProject({
-        projectName = "FrustumCulling",
-        projectType = function()
-            if is_mode("release") then
-                return "shared"
-            else
-                return "binary"
-            end
-        end,
-        macros = function()
-            return Macro({"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
-        end,
-        files = {"Renderer/*.cpp"},
-        includePaths = IncludePaths,
-        depends = {"VEngine_DLL"},
-        exception = true,
-        rules = "copy_to_unity"
-    })
-end
+BuildProject({
+    projectName = function()
+        return ProjFilter("FrustumCulling")
+    end,
+    projectType = function()
+        if is_mode("release") then
+            return "shared"
+        else
+            return "binary"
+        end
+    end,
+    macros = function()
+        return Macro({"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    end,
+    files = {"Renderer/*.cpp"},
+    includePaths = IncludePaths,
+    depends = {"VEngine_DLL"},
+    exception = true,
+    rules = "copy_to_unity"
+})
 

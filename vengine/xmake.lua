@@ -7,13 +7,13 @@ function GetValue(funcOrValue)
     end
 end
 function Execute(map, func)
-    value = GetValue(map)
+    local value = GetValue(map)
     if value ~= nil then
         func(value)
     end
 end
 function SetException(enableException)
-    value = GetValue(enableException)
+    local value = GetValue(enableException)
     if (value ~= nil) and value then
         add_cxflags("/EHsc", {
             force = true
@@ -21,10 +21,14 @@ function SetException(enableException)
     end
 end
 function BuildProject(config)
-    target(GetValue(config.projectName))
+    local projectName = GetValue(config.projectName)
+    if projectName == nil then
+        return
+    end
+    target(projectName)
     set_languages("clatest")
     set_languages("cxx20")
-    projectType = GetValue(config.projectType)
+    local projectType = GetValue(config.projectType)
     if projectType ~= nil then
         set_kind(projectType)
     end
@@ -34,7 +38,7 @@ function BuildProject(config)
     Execute(config.depends, add_deps)
     Execute(config.links, add_links)
     Execute(config.rules, add_rules)
-    unityBuildBatch = GetValue(config.unityBuildBatch)
+    local unityBuildBatch = GetValue(config.unityBuildBatch)
     if (unityBuildBatch ~= nil) and (unityBuildBatch > 0) then
         add_rules("c.unity_build", {
             batchsize = unityBuildBatch

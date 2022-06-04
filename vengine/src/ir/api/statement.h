@@ -132,7 +132,7 @@ enum struct CallOp : uint32_t {
 	SET_ACCEL_VISIBILITY,
 	SET_ACCEL_TRANSFORM_VISIBILITY,
 	TRACE_CLOSEST,
-	TRACE_ANY
+	TRACE_ANY,
 };
 static constexpr size_t CallOpCount = static_cast<size_t>(CallOp::TRACE_ANY) + 1;
 enum struct UnaryOp : uint32_t {
@@ -140,8 +140,9 @@ enum struct UnaryOp : uint32_t {
 	MINUS,	// +x, -x
 	NOT,	// !x
 	BIT_NOT,// ~x
+	CAST, //(float)x
 };
-static constexpr size_t UnaryOpCount = static_cast<size_t>(UnaryOp::BIT_NOT) + 1;
+static constexpr size_t UnaryOpCount = static_cast<size_t>(UnaryOp::CAST) + 1;
 /**
  * @brief Enum of binary operations
  * 
@@ -189,6 +190,7 @@ struct Statement : public Allocatable {
 		Loop,
 		Switch
 	};
+	virtual bool valid() const = 0;
 	virtual Tag tag() const = 0;
 	virtual ~Statement() = default;
 };
@@ -201,6 +203,7 @@ struct UnaryStmt : public Statement {
 	Var const* lhs;
 	UnaryOp op;
 	Tag tag() const override { return Tag::Unary; }
+	bool valid() const override;
 };
 struct BinaryStmt : public Statement {
 	Var const* dst;
@@ -208,29 +211,35 @@ struct BinaryStmt : public Statement {
 	Var const* rhs;
 	BinaryOp op;
 	Tag tag() const override { return Tag::Binary; }
+	bool valid() const override;
 };
 
 struct ReturnStmt : public Statement {
 	Var const* retValue;
 	Tag tag() const override { return Tag::Return; }
+	bool valid() const override;
 };
 struct BreakStmt : public Statement {
 	Tag tag() const override { return Tag::Break; }
+	bool valid() const override;
 };
 struct ContinueStmt : public Statement {
 	Tag tag() const override { return Tag::Continue; }
+	bool valid() const override;
 };
 struct BuiltinCallStmt : public Statement {
 	CallOp op;
 	Var const* dst;
 	vstd::span<Var const*> args;
 	Tag tag() const override { return Tag::BuiltinCall; }
+	bool valid() const override;
 };
 struct CustomCallStmt : public Statement {
 	Var const* dst;
 	size_t callableIndex;
 	vstd::span<Var const*> args;
 	Tag tag() const override { return Tag::CustomCall; }
+	bool valid() const override;
 };
 struct MemberStmt : public Statement {
 	Var const* dst;
@@ -238,6 +247,7 @@ struct MemberStmt : public Statement {
 	vstd::span<uint64> indices;
 	ReadWrite rwState;
 	Tag tag() const override { return Tag::Member; }
+	bool valid() const override;
 };
 struct AccessStmt : public Statement {
 	Var const* dst;
@@ -245,22 +255,26 @@ struct AccessStmt : public Statement {
 	vstd::variant<Var const*, uint64> index;
 	ReadWrite rwState;
 	Tag tag() const override { return Tag::Access; }
+	bool valid() const override;
 };
 struct IfStmt : public Statement {
 	Var const* condition;
 	vstd::vector<Statement const*> trueField;
 	vstd::vector<Statement const*> falseField;
 	Tag tag() const override { return Tag::If; }
+	bool valid() const override;
 };
 struct LoopStmt : public Statement {
 	Var const* condition;
 	vstd::vector<Statement const*> commands;
 	Tag tag() const override { return Tag::Loop; }
+	bool valid() const override;
 };
-
 struct SwitchStmt : public Statement {
 	using Case = std::pair<int32_t, vstd::vector<Statement const*>>;
+	Var const* condition;
 	vstd::vector<Case> cases;
 	Tag tag() const override { return Tag::Switch; }
+	bool valid() const override;
 };
 }// namespace toolhub::ir

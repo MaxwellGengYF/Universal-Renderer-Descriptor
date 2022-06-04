@@ -7,7 +7,7 @@ namespace toolhub::ir {
 class Parser;
 class CommandRecorder;
 class StatementName {
-	Var const* PrepareVar(VarDescriptor const& varDesc);
+	vstd::optional<Var const*> PrepareVar(VarDescriptor const& varDesc);
 
 public:
 	struct CustomFunc {
@@ -37,7 +37,7 @@ public:
 	NameMap<BinaryOp> binaryMap;
 	NameMap<CallOp> callMap;
 	void Init();
-	bool Run(vstd::string_view funcName, VarDescriptor const& ret, ArgSpan sp);
+	bool Run(vstd::string_view funcName, VarDescriptor&& ret, ArgSpan sp);
 	bool BuiltInFunc(CallOp callOp, FuncCall const& funcPack);
 	bool BinaryOpCall(BinaryOp op, FuncCall const& funcPack);
 	bool UnaryOpCall(UnaryOp op, FuncCall const& funcPack);

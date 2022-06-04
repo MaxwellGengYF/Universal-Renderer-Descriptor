@@ -19,6 +19,12 @@ Scope* CommandRecorder::NewStack(ScopeTag tag) {
 		case ScopeTag::Loop:
 			newScope = new LoopScope();
 			break;
+		case ScopeTag::Case:
+			newScope = new CaseScope();
+			break;
+		case ScopeTag::Switch:
+			newScope = new SwitchScope();
+			break;
 		default:
 			newScope = nullptr;
 			break;
@@ -120,6 +126,7 @@ Statement const* IfScope::ToStatement(vstd::ObjectStackAlloc& alloc) {
 }
 Statement const* SwitchScope::ToStatement(vstd::ObjectStackAlloc& alloc) {
 	auto stmt = alloc.Allocate<SwitchStmt>();
+	stmt->condition = condition;
 	stmt->cases.push_back_func(cases.size(), [&](size_t i) {
 		auto&& c = cases[i];
 		SwitchStmt::Case dst;

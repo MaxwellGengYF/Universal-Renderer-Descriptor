@@ -179,10 +179,8 @@ std::pair<vec3, vec3> MathLib::GetFrustumBoundingBox(
 	float nearZ,
 	float farZ) noexcept {
 	float tt = tan(fov * 0.5);
-	float nearWindowHeight = nearZ * tt;
-	float farWindowHeight = farZ * tt;
-	float halfNearYHeight = nearWindowHeight * 0.5;
-	float halfFarYHeight = farWindowHeight * 0.5;
+	float halfNearYHeight = nearZ * tt;
+	float halfFarYHeight =  farZ * tt;
 	float halfNearXWidth = halfNearYHeight * aspect;
 	float halfFarXWidth = halfFarYHeight * aspect;
 	vec3 poses[8];

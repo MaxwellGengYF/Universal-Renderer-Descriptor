@@ -53,6 +53,11 @@ void IRCodegen::GetTypeName(Type const* t, vstd::string& str) {
 				str << ite.Value();
 			}
 		} break;
+		case Type::Tag::Buffer: {
+			str << "Buffer<";
+			GetTypeName(t->element, str);
+			str << '>';
+		} break;
 	}
 }
 vstd::string IRCodegen::Gen(Kernel const& kernel) {
@@ -88,8 +93,8 @@ void IRCodegen::PrintStatement(Statement const* stmt, vstd::string& str) {
 			str << '=';
 		}
 	};
-	auto PrintDstType = [&](auto&& stmt){
-		if(stmt->dst){
+	auto PrintDstType = [&](auto&& stmt) {
+		if (stmt->dst) {
 			str << ':';
 			GetTypeName(stmt->dst->type, str);
 		}
@@ -200,7 +205,28 @@ void IRCodegen::PrintStatement(Statement const* stmt, vstd::string& str) {
 		} break;
 		case Statement::Tag::Return: {
 			auto retStmt = static_cast<ReturnStmt const*>(stmt);
-			str << "return()";
+			if (!retStmt->retValue)
+				str << "return()";
+			else {
+				str << "return(";
+				PrintVar(retStmt->retValue, str);
+				str << ')';
+			}
+
+		} break;
+		case Statement::Tag::Switch: {
+			auto switchStmt = static_cast<SwitchStmt const*>(stmt);
+			str << "switch(";
+			PrintVar(switchStmt->condition, str);
+			str << ")\n";
+			for(auto&& c : switchStmt->cases){
+				str << "case(" << vstd::to_string(c.first) << ")\n";
+				for(auto&& s : c.second){
+					PrintStatement(s, str);
+				}
+				str << "endcase()\n";
+			}
+			str << "endswitch()";
 		} break;
 	}
 }

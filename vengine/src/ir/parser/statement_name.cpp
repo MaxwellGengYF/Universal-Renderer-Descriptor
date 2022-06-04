@@ -10,10 +10,12 @@
 namespace toolhub::ir {
 static bool If(StatementName& s, StatementName::FuncCall const& funcPack) {
 	auto&& recorder = *s.recorder;
-	auto scope = static_cast<IfScope*>(recorder.PushStack(ScopeTag::If));
 	if (funcPack.args.size() != 1) return false;
 	auto strv = funcPack.args[0];
-	scope->condition = recorder.TryGetVar(funcPack.args[0]);
+	auto condition = recorder.TryGetVar(funcPack.args[0]);
+	;
+	auto scope = static_cast<IfScope*>(recorder.PushStack(ScopeTag::If));
+	scope->condition = condition;
 	return scope->condition;
 }
 static bool EndIf(StatementName& s, StatementName::FuncCall const& funcPack) {
@@ -38,11 +40,12 @@ static bool Else(StatementName& s, StatementName::FuncCall const& funcPack) {
 }
 static bool While(StatementName& s, StatementName::FuncCall const& funcPack) {
 	auto&& recorder = *s.recorder;
-	auto scope = static_cast<LoopScope*>(recorder.PushStack(ScopeTag::Loop));
 	if (funcPack.args.size() != 1) return false;
 	auto strv = funcPack.args[0];
-	scope->condition = recorder.TryGetVar(funcPack.args[0]);
-	return true;
+	auto condition = recorder.TryGetVar(funcPack.args[0]);
+	auto scope = static_cast<LoopScope*>(recorder.PushStack(ScopeTag::Loop));
+	scope->condition = condition;
+	return condition;
 }
 static bool EndWhile(StatementName& s, StatementName::FuncCall const& funcPack) {
 	auto&& recorder = *s.recorder;
@@ -55,14 +58,14 @@ static bool EndWhile(StatementName& s, StatementName::FuncCall const& funcPack) 
 }
 static bool Switch(StatementName& s, StatementName::FuncCall const& funcPack) {
 	auto&& recorder = *s.recorder;
-	auto scope = static_cast<SwitchScope*>(recorder.PushStack(ScopeTag::Switch));
 	if (funcPack.args.size() != 1) return false;
 	auto var = recorder.TryGetVar(funcPack.args[0]);
 	if (!var) return false;
 	auto typeTag = var->type->tag;
 	if (typeTag != Type::Tag::Int && typeTag != Type::Tag::UInt) return false;
+	auto scope = static_cast<SwitchScope*>(recorder.PushStack(ScopeTag::Switch));
 	scope->condition = var;
-	return true;
+	return var;
 }
 static bool EndSwitch(StatementName& s, StatementName::FuncCall const& funcPack) {
 	auto&& recorder = *s.recorder;
@@ -74,20 +77,23 @@ static bool EndSwitch(StatementName& s, StatementName::FuncCall const& funcPack)
 static bool Case(StatementName& s, StatementName::FuncCall const& funcPack) {
 	if (funcPack.args.size() != 1) return false;
 	auto num = StringUtil::StringToNumber(funcPack.args[0]).template try_get<int64>();
-	if (!num) return false;
+	if (!num)
+		return false;
 	auto&& recorder = *s.recorder;
 	auto lastSwitch = recorder.LastStack();
-	if (lastSwitch->tag() != ScopeTag::Switch) return false;
-	auto scope = static_cast<CaseScope*>(recorder.NewStack(ScopeTag::Case));
+	if (lastSwitch->tag() != ScopeTag::Switch)
+		return false;
+	auto scope = static_cast<CaseScope*>(recorder.PushStack(ScopeTag::Case));
 	scope->index = *num;
-	static_cast<SwitchScope*>(lastSwitch)->cases.emplace_back(scope);
 	return true;
 }
 static bool EndCase(StatementName& s, StatementName::FuncCall const& funcPack) {
 	auto&& recorder = *s.recorder;
 	auto last = recorder.LastStack();
 	if (last && last->tag() == ScopeTag::Case) {
-		recorder.PopStack();
+		auto caseScope = recorder.scopeStack.erase_last();
+		auto switchScope = static_cast<SwitchScope*>(recorder.LastStack());
+		switchScope->cases.emplace_back(static_cast<CaseScope*>(caseScope.release()));
 		return true;
 	}
 	return false;
@@ -116,18 +122,21 @@ static bool Return(StatementName& s, StatementName::FuncCall const& funcPack) {
 	return true;
 }
 
-Var const* StatementName::PrepareVar(VarDescriptor const& varDesc) {
+vstd::optional<Var const*> StatementName::PrepareVar(VarDescriptor const& varDesc) {
+	if (varDesc.typeDesc.typeName.empty()) return nullptr;
+	auto type = parser->GetType(varDesc.typeDesc);
 	Var const* retVar = nullptr;
 	if (!varDesc.varName.empty()) {
 		retVar = recorder->TryGetVar(varDesc.varName);
 		if (!retVar) {
 			auto newVar = objAlloc->Allocate<VariableVar>();
 			newVar->usage = Usage::ReadWrite;
-			auto type = parser->GetType(varDesc.typeDesc.typeName, varDesc.typeDesc.typeArrSize);
-			if (!type) return nullptr;
+			if (!type) return {};
 			newVar->type = type;
 			recorder->AddVar(newVar, varDesc.varName);
 			retVar = newVar;
+		} else {
+			if (retVar->type != type) return {};
 		}
 	}
 	return retVar;
@@ -135,7 +144,9 @@ Var const* StatementName::PrepareVar(VarDescriptor const& varDesc) {
 
 bool StatementName::BuiltInFunc(CallOp callOp, FuncCall const& funcPack) {
 	auto stmt = objAlloc->Allocate<BuiltinCallStmt>();
-	stmt->dst = PrepareVar(funcPack.varDesc);
+	auto dstType = PrepareVar(funcPack.varDesc);
+	if (!dstType) return false;
+	stmt->dst = *dstType;
 	auto argSpan =
 		objAlloc
 			->AllocateSpan<Var const*>(
@@ -155,7 +166,9 @@ bool StatementName::BuiltInFunc(CallOp callOp, FuncCall const& funcPack) {
 }
 bool StatementName::BinaryOpCall(BinaryOp op, FuncCall const& funcPack) {
 	auto stmt = objAlloc->Allocate<BinaryStmt>();
-	stmt->dst = PrepareVar(funcPack.varDesc);
+	auto dstType = PrepareVar(funcPack.varDesc);
+	if (!dstType) return false;
+	stmt->dst = *dstType;
 	stmt->op = op;
 	if (funcPack.args.size() != 2) return false;
 	stmt->lhs = recorder->TryGetVar(funcPack.args[0]);
@@ -167,7 +180,9 @@ bool StatementName::BinaryOpCall(BinaryOp op, FuncCall const& funcPack) {
 }
 bool StatementName::UnaryOpCall(UnaryOp op, FuncCall const& funcPack) {
 	auto stmt = objAlloc->Allocate<UnaryStmt>();
-	stmt->dst = PrepareVar(funcPack.varDesc);
+	auto dstType = PrepareVar(funcPack.varDesc);
+	if (!dstType) return false;
+	stmt->dst = *dstType;
 	if (funcPack.args[0] != 1)
 		return false;
 	stmt->lhs = recorder->TryGetVar(funcPack.args[0]);
@@ -185,7 +200,7 @@ Callable const* StatementName::AddCustomFunc(
 	vstd::vector<Statement const*>&& stmts) {
 	Type const* retType = nullptr;
 	if (!ret.typeName.empty())
-		retType = parser->GetType(ret.typeName, ret.typeArrSize);
+		retType = parser->GetType(ret);
 	auto idx = customFuncs.size();
 	customFuncIndices.Emplace(funcName, idx);
 	auto&& d = customFuncs.emplace_back();
@@ -205,12 +220,12 @@ Callable const* StatementName::AddCustomFunc(
 	}
 	return callable;
 }
-bool StatementName::Run(vstd::string_view funcName, VarDescriptor const& ret, ArgSpan sp) {
+bool StatementName::Run(vstd::string_view funcName, VarDescriptor&& ret, ArgSpan sp) {
 	auto ite = funcs.Find(funcName);
 	// Built-in
 	if (ite) {
 		auto&& v = ite.Value();
-		return v(*this, FuncCall{ret, sp});
+		return v(*this, FuncCall{std::move(ret), sp});
 	}
 	//Try custom
 	auto cusIte = customFuncIndices.Find(funcName);
@@ -218,18 +233,21 @@ bool StatementName::Run(vstd::string_view funcName, VarDescriptor const& ret, Ar
 	vstd::span<Var const*> argVars = objAlloc->AllocateSpan<Var const*>(sp.size(), [](auto sp) {})->span();
 	for (auto i : vstd::range(sp.size())) {
 		auto argVar = recorder->TryGetVar(sp[i]);
-		if (!argVar) return false;
+		if (!argVar)
+			return false;
 		argVars[i] = argVar;
 	}
 	auto retVar = PrepareVar(ret);
-	return ExecuteCustomFunc(funcName, customFuncs[cusIte.Value()], argVars, retVar);
+	if (!retVar)
+		return false;
+	return ExecuteCustomFunc(funcName, customFuncs[cusIte.Value()], argVars, *retVar);
 }
 bool StatementName::ExecuteCustomFunc(vstd::string_view name, const CustomFunc& func, vstd::span<const Var*> args, const Var* ret) {
 	auto stmt = objAlloc->Allocate<CustomCallStmt>();
 	stmt->args = args;
 	stmt->dst = ret;
 	auto ite = customFuncIndices.Find(name);
-	if(!ite) return false;
+	if (!ite) return false;
 	stmt->callableIndex = ite.Value();
 	recorder->AddStmt(stmt);
 	return true;
@@ -241,7 +259,9 @@ void StatementName::Clear() {
 bool StatementName::GetMember(const FuncCall& funcPack) {
 	auto stmt = objAlloc->Allocate<MemberStmt>();
 	if (funcPack.args.size() <= 1) return false;
-	stmt->dst = PrepareVar(funcPack.varDesc);
+	auto dstType = PrepareVar(funcPack.varDesc);
+	if (!dstType) return false;
+	stmt->dst = *dstType;
 	stmt->indices = objAlloc->AllocateSpan<uint64>(funcPack.args.size() - 1, [](auto a) {})->span();
 	stmt->src = recorder->TryGetVar(funcPack.args[0]);
 
@@ -257,7 +277,9 @@ bool StatementName::GetMember(const FuncCall& funcPack) {
 bool StatementName::GetIndex(const FuncCall& funcPack) {
 	auto stmt = objAlloc->Allocate<AccessStmt>();
 	if (funcPack.args.size() != 2) return false;
-	stmt->dst = PrepareVar(funcPack.varDesc);
+	auto dstType = PrepareVar(funcPack.varDesc);
+	if (!dstType) return false;
+	stmt->dst = *dstType;
 	stmt->src = recorder->TryGetVar(funcPack.args[0]);
 	if (!stmt->src) return false;
 	stmt->index = recorder->TryGetVar(funcPack.args[1]);
@@ -268,6 +290,8 @@ bool StatementName::GetIndex(const FuncCall& funcPack) {
 	}
 	recorder->AddStmt(stmt);
 	return true;
+}
+static bool Cast(StatementName& s, StatementName::FuncCall const& funcPack) {
 }
 // clang-format off
 //Builtin
@@ -400,6 +424,7 @@ static bool Fplus(StatementName& s, StatementName::FuncCall const& funcPack) { r
 static bool Fminus(StatementName& s, StatementName::FuncCall const& funcPack) { return s.UnaryOpCall(UnaryOp::MINUS, funcPack); }
 static bool Fnot(StatementName& s, StatementName::FuncCall const& funcPack) { return s.UnaryOpCall(UnaryOp::NOT, funcPack); }
 static bool Fbit_not(StatementName& s, StatementName::FuncCall const& funcPack) { return s.UnaryOpCall(UnaryOp::BIT_NOT, funcPack); }
+static bool Fcast(StatementName& s, StatementName::FuncCall const& funcPack) { return s.UnaryOpCall(UnaryOp::CAST, funcPack); }
 // Custom
 static bool Fget_member(StatementName& s, StatementName::FuncCall const& funcPack){ return s.GetMember(funcPack);}
 static bool Fget_index(StatementName& s, StatementName::FuncCall const& funcPack){ return s.GetIndex(funcPack);}
@@ -413,6 +438,7 @@ void StatementName::Init() {
 	REGIST_FUNC(Else, else);
 	REGIST_FUNC(If, if);
 	REGIST_FUNC(EndIf, endif);
+	REGIST_FUNC(Return, return);
 	REGIST_FUNC(Switch, switch);
 	REGIST_FUNC(EndSwitch, endswitch);
 	REGIST_FUNC(Case, case);

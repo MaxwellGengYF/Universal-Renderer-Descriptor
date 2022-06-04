@@ -17,20 +17,24 @@ class QuadTree : public vstd::IOperatorNewBase {
 	QuadNode* root;
 	vstd::Pool<QuadNode, VEngine_AllocType::VEngine, true> nodePool;
 	vstd::vector<float> distances;
-	vstd::vector<QuadNode const*> cullResult;
+	vstd::vector<uint> instanceLayer;
+	vstd::vector<vec4> cullResult;
 	float crossFade;
 	vec3 camPos;
+
 	void CombineTree(QuadNode* node);
 	void SeparateTree(QuadNode* node);
 
 public:
+	vec2 bbMinPos;
+	vec2 bbMaxPos;
 	QuadTree(vec2 pos, float rootSize);
 	~QuadTree();
-	void SetLodDistance(float const* distance, size_t lodCount, float crossFade);
+	void SetLodDistance(std::pair<float, int> const* distance, size_t lodCount, float crossFade);
 	void SetCamera(vec3 camPos);
 	void UpdateTree();
 	void Cull(CamArgs const& cam, float minHeight, float maxHeight);
-	std::pair<QuadNode const* const* const, size_t> GetCullResult() {
+	std::pair<vec4 const* const, size_t> GetCullResult() {
 		return {cullResult.data(), cullResult.size()};
 	}
 };

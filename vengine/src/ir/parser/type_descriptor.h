@@ -1,9 +1,10 @@
 #pragma once
 #include <Common/Common.h>
 namespace toolhub::ir {
-struct TypeDescriptor {
+struct TypeDescriptor : public vstd::IOperatorNewBase{
 	vstd::string_view typeName;
 	size_t typeArrSize;
+	vstd::unique_ptr<TypeDescriptor> subType;
 	TypeDescriptor() : typeArrSize(0) {}
 	TypeDescriptor(
 		vstd::string_view typeName,
@@ -17,7 +18,7 @@ struct VarDescriptor {
 	VarDescriptor() {}
 	VarDescriptor(
 		vstd::string_view varName,
-		TypeDescriptor const& typeDesc)
-		: varName(varName), typeDesc(typeDesc) {}
+		TypeDescriptor&& typeDesc)
+		: varName(varName), typeDesc(std::move(typeDesc)) {}
 };
 }// namespace toolhub::ir

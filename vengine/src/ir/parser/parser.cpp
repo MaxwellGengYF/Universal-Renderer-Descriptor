@@ -34,7 +34,6 @@ public:
 	StateRecorder<bool> space;
 	StateRecorder<CharState> charTypes;
 	vstd::HashMap<vstd::string_view, ParserState> parserState;
-	vstd::HashMap<vstd::string_view, vstd::function<void(Type*)>> resTypeFuncs;
 	bool inited = false;
 	static void InitSpace(typename StateRecorder<bool>::ArrayType& ptr) {
 		ptr[' '] = true;
@@ -75,12 +74,6 @@ public:
 		parserState.Emplace("def", ParserState::Function);
 		parserState.Emplace("const", ParserState::Const);
 		parserState.Emplace("shared", ParserState::Shared);
-		resTypeFuncs.Emplace("Texture", [](Type* t) {
-			t->tag = Type::Tag::Texture;
-		});
-		resTypeFuncs.Emplace("Buffer", [](Type* t) {
-			t->tag = Type::Tag::Buffer;
-		});
 	}
 };
 static ParserGlobalData glb;
@@ -89,97 +82,123 @@ Parser::Parser() {
 	stateName.Init();
 	stateName.recorder = &recorder;
 }
-Type const* Parser::FindType(vstd::string_view name) {
-	vstd::HashCache<vstd::string_view> nameKey(name);
-	auto builtinType = Kernel::GetBuiltinType(nameKey);
-	if (builtinType) return builtinType;
-	auto ite = customTypes.Find(nameKey);
-	if (!ite) return nullptr;
-	return ite.Value();
-}
+
 bool Parser::ParseType(TypeDescriptor& result, char const*& ite) {
-	if (glb.charTypes.Get(*ite) == CharState::Word) {
-		result = {glb.charTypes.GetNext(ite, IsKeyword), 0};
-	} else {
-		errorMsg = "Invalid type in struct!";
-		return false;
-	}
-	JUMP_SPACE;
-	if (glb.charTypes.Get(*ite) == CharState::LeftBracket) {
-		++ite;
+	auto func = [&ite, this]<bool parseSubType>(auto& func, TypeDescriptor& result) -> bool {
+		if (glb.charTypes.Get(*ite) == CharState::Word) {
+			result = {glb.charTypes.GetNext(ite, IsKeyword), 0};
+		} else {
+			errorMsg = "Invalid type in struct!";
+			return false;
+		}
 		JUMP_SPACE;
-		if (glb.charTypes.Get(*ite) != CharState::Number) {
-			errorMsg = "array's size must be valid number";
-			return false;
+		if constexpr (parseSubType) {
+			if (*ite == '<') {
+				++ite;
+				JUMP_SPACE;
+				result.subType = vstd::create_unique(new TypeDescriptor());
+				if (!func.template operator()<false>(func, *result.subType)) return false;
+				JUMP_SPACE;
+				if (*ite != '>') {
+					errorMsg = "require '>'";
+					return false;
+				}
+				++ite;
+				JUMP_SPACE;
+			}
 		}
-		auto arraySizeStr = glb.charTypes.GetNext(ite, CharState::Number);
-		auto arraySize = StringUtil::StringToNumber(arraySizeStr).get_or<int64>(-1);
-		if (arraySize < 0) {
-			errorMsg = "array's size must be unsigned integer";
-			return false;
+		if (*ite == '[') {
+			++ite;
+			JUMP_SPACE;
+			if (glb.charTypes.Get(*ite) != CharState::Number) {
+				errorMsg = "array's size must be valid number";
+				return false;
+			}
+			auto arraySizeStr = glb.charTypes.GetNext(ite, CharState::Number);
+			auto arraySize = StringUtil::StringToNumber(arraySizeStr).get_or<int64>(-1);
+			if (arraySize < 0) {
+				errorMsg = "array's size must be unsigned integer";
+				return false;
+			}
+			result.typeArrSize = arraySize;
+			JUMP_SPACE;
+			if (*ite != ']') {
+				errorMsg = "require ']'";
+				return false;
+			}
+			++ite;
 		}
-		result.typeArrSize = arraySize;
-		JUMP_SPACE;
-		if (*ite != ']') {
-			errorMsg = "require ']'";
-			return false;
-		}
-		++ite;
-	}
-	return true;
-}
-Type const* Parser::GetType(vstd::string_view typeNameStr, size_t arraySize) {
-	auto GetMember = [&](vstd::HashCache<vstd::string_view> const& typeName) -> Type const* {
-		auto member = Kernel::GetBuiltinType(typeName);
-		if (member != nullptr)
-			return member;
-		auto customIte = customTypes.Find(typeName);
-		if (customIte)
-			return customIte.Value();
-		auto splitIte = StringUtil::Split(typeNameStr, '_').begin();
-		if (splitIte == vstd::IteEndTag()) return nullptr;
-		auto ite = glb.resTypeFuncs.Find(*splitIte);
-		auto tp = kernel->allocator.Allocate<Type>();
-		if (ite) {
-			ite.Value()(tp);
-		}
-		++splitIte;
-		if (splitIte == vstd::IteEndTag()) return nullptr;
-		tp->element = GetType(*splitIte, 0);
-		++splitIte;
-		if (splitIte != vstd::IteEndTag()) return nullptr;
-		return tp;
+		return true;
 	};
-	vstd::HashCache<vstd::string_view> typeName = typeNameStr;
-	auto&& typeArraySize = arraySize;
-	if (typeArraySize == 0) {
-		auto member = GetMember(typeName);
-		if (!member) {
-			errorMsg << "Unknown type: " << *typeName.key;
+	return func.operator()<true>(func, result);
+}
+Type const* Parser::GetType(
+	TypeDescriptor const& desc) {
+	auto func = [this]<bool subType>(auto& func, TypeDescriptor const& desc) -> Type const* {
+		auto GetMember = [&](vstd::HashCache<vstd::string_view> const& typeName) -> Type const* {
+			auto member = Kernel::GetBuiltinType(typeName);
+			if (member != nullptr)
+				return member;
+			auto customIte = customTypes.Find(typeName);
+			if (customIte)
+				return customIte.Value();
 			return nullptr;
+		};
+		auto&& typeArraySize = desc.typeArrSize;
+		if (typeArraySize == 0) {
+			if constexpr (subType) {
+				if (desc.subType != nullptr) {
+					vstd::string tempStr;
+					tempStr << desc.typeName << '(' << desc.subType->typeName;
+					auto customIte = customTypes.Find(tempStr);
+					if (customIte)
+						return customIte.Value();
+					auto parentIte = Kernel::GetBuiltinType(desc.typeName);
+					if (!parentIte) {
+						std::cout << desc.typeName << '\n';
+						return nullptr;
+					}
+					auto subType = func.template operator()<false>(func, *desc.subType);
+					Type* newType = kernel->allocator.Allocate<Type>(*parentIte);
+					newType->element = subType;
+					return newType;
+				}
+			}
+			vstd::HashCache<vstd::string_view> typeName = desc.typeName;
+			auto member = GetMember(typeName);
+			if (!member) {
+				errorMsg << "Unknown type: " << *typeName.key;
+				return nullptr;
+			}
+			return member;
+
+		} else {
+			if constexpr (subType) {
+				if (desc.subType != nullptr) return nullptr;
+			}
+			vstd::HashCache<vstd::string_view> typeName = desc.typeName;
+			vstd::string arrayName;
+			arrayName << *typeName.key << '[' << vstd::to_string(typeArraySize) << ']';
+			auto customIte = customTypes.Find(arrayName);
+			if (customIte) {
+				return customIte.Value();
+			}
+			auto element = GetMember(typeName);
+			if (!element) {
+				errorMsg << "Unknown type: " << *typeName.key;
+				return nullptr;
+			}
+			auto arrayType = kernel->allocator.Allocate<Type>();
+			arrayType->tag = Type::Tag::Array;
+			arrayType->size = element->size * typeArraySize;
+			arrayType->dimension = typeArraySize;
+			arrayType->alignment = element->alignment;
+			arrayType->element = element;
+			customTypes.Emplace(std::move(arrayName), arrayType);
+			return arrayType;
 		}
-		return member;
-	} else {
-		vstd::string arrayName;
-		arrayName << *typeName.key << '[' << vstd::to_string(typeArraySize) << ']';
-		auto customIte = customTypes.Find(arrayName);
-		if (customIte) {
-			return customIte.Value();
-		}
-		auto element = GetMember(typeName);
-		if (!element) {
-			errorMsg << "Unknown type: " << *typeName.key;
-			return nullptr;
-		}
-		auto arrayType = kernel->allocator.Allocate<Type>();
-		arrayType->tag = Type::Tag::Array;
-		arrayType->size = element->size * typeArraySize;
-		arrayType->dimension = typeArraySize;
-		arrayType->alignment = element->alignment;
-		arrayType->element = element;
-		customTypes.Emplace(std::move(arrayName), arrayType);
-		return arrayType;
-	}
+	};
+	return func.operator()<true>(func, desc);
 }
 
 bool Parser::ParseStruct(char const*& ite) {
@@ -208,47 +227,15 @@ bool Parser::ParseStruct(char const*& ite) {
 		return false;
 	}
 	++ite;
-	vstd::vector<std::pair<vstd::string_view, size_t>> typeStrv;
-	for (bool loop = true; loop;) {
+	vstd::vector<TypeDescriptor> typeStrv;
+	while (true) {
 		JUMP_SPACE;
-		switch (glb.charTypes.Get(*ite)) {
-			case CharState::RightBrace:
-				++ite;
-				loop = false;
-				break;
-			case CharState::LeftBracket: {
-				if (typeStrv.empty()) {
-					errorMsg = "Invalid syntax: '['"_sv;
-					return false;
-				}
-				++ite;
-				JUMP_SPACE;
-				if (glb.charTypes.Get(*ite) != CharState::Number) {
-					errorMsg = "array's size must be valid number";
-					return false;
-				}
-				auto arraySizeStr = glb.charTypes.GetNext(ite, CharState::Number);
-				auto arraySize = StringUtil::StringToNumber(arraySizeStr).get_or<int64>(-1);
-				if (arraySize < 0) {
-					errorMsg = "array's size must be unsigned integer";
-					return false;
-				}
-				(typeStrv.end() - 1)->second = arraySize;
-				JUMP_SPACE;
-				if (*ite != ']') {
-					errorMsg = "require ']'";
-					return false;
-				}
-				++ite;
-			} break;
-			case CharState::Word: {
-				typeStrv.emplace_back(glb.charTypes.GetNext(ite, IsKeyword), 0);
-			} break;
-			default: {
-				errorMsg = "Invalid type in struct!";
-				return false;
-			}
+		if (*ite == '}') {
+			++ite;
+			break;
 		}
+		auto& value = typeStrv.emplace_back();
+		if (!ParseType(value, ite)) return false;
 	}
 	Type* structType = kernel->allocator.Allocate<Type>();
 	auto structMembers = kernel->allocator.AllocateSpan<Type const*>(typeStrv.size(), [](vstd::span<Type const*> sp) {})->ptr();
@@ -256,12 +243,19 @@ bool Parser::ParseStruct(char const*& ite) {
 	structType->members = {structMembers,
 						   typeStrv.size()};
 	structType->alignment = alignSize;
-
+	auto CalcAlign = [](uint64 value, uint64 align) {
+		return (value + (align - 1)) & ~(align - 1);
+	};
+	for (auto&& i : structType->members) {
+	}
+	size_t size = 0;
 	for (auto i : vstd::range(typeStrv.size())) {
-		auto type = GetType(typeStrv[i].first, typeStrv[i].second);
+		auto type = GetType(typeStrv[i]);
 		if (!type) return false;
 		structMembers[i] = type;
+		size = CalcAlign(size, type->alignment);
 	}
+	structType->size = std::max<size_t>(1, size);
 	customTypes.Emplace(structName, structType);
 	// analysis types
 	return true;
@@ -295,11 +289,8 @@ bool Parser::ParseFunction(char const*& ite) {
 				}
 				++ite;
 				JUMP_SPACE;
-				if (!IsKeyword(glb.charTypes.Get(*ite))) {
-					errorMsg = "require argument type name";
-					return false;
-				}
-				auto argTypeName = glb.charTypes.GetNext(ite, IsKeyword);
+				TypeDescriptor typeDesc;
+				ParseType(typeDesc, ite);
 				bool argIsRef;
 				if (*ite == '&') {
 					argIsRef = true;
@@ -307,9 +298,9 @@ bool Parser::ParseFunction(char const*& ite) {
 				} else
 					argIsRef = false;
 				JUMP_SPACE;
-				auto argType = FindType(argTypeName);
+				auto argType = GetType(typeDesc);
 				if (!argType) {
-					errorMsg << "Invalid argument type: " << argTypeName;
+					errorMsg << "Invalid argument type: " << typeDesc.typeName;
 					return false;
 				}
 				Var* argVar;
@@ -321,7 +312,9 @@ bool Parser::ParseFunction(char const*& ite) {
 				argVar->type = argType;
 				argVar->usage = Usage::Read;
 				functionVars.emplace_back(argName, argVar);
-
+				if (*ite == ',') {
+					++ite;
+				}
 			} break;
 			case CharState::RightRound:
 				++ite;
@@ -376,7 +369,7 @@ bool Parser::ParseFunction(char const*& ite) {
 				return false;
 		}
 	}
-	auto callable = stateName.AddCustomFunc(returnTypeName, funcName, functionVars, recorder.GetStatements());
+	auto callable = stateName.AddCustomFunc(std::move(returnTypeName), funcName, functionVars, recorder.GetStatements());
 	if (!callable)
 		return false;
 	recorder.ClearFunction();
@@ -457,11 +450,16 @@ bool Parser::ParseStatement(
 		}
 		++ite;
 		JUMP_SPACE;
-		if (!ParseType(returnTypeName, ite))
+		if (!ParseType(returnTypeName, ite)){
+			errorMsg = "error return type";
 			return false;
+		}
 	}
-	VarDescriptor varDesc(returnName, returnTypeName);
-	bool result = this->stateName.Run(stateName, varDesc, argNames);
+	VarDescriptor varDesc(returnName, std::move(returnTypeName));
+	bool result = this->stateName.Run(stateName, std::move(varDesc), argNames);
+	if(!result){
+		errorMsg = "illegal statement";
+	}
 	return result;
 }
 
@@ -470,7 +468,7 @@ bool Parser::ParseConst(char const*& ite) {
 	TypeDescriptor typeName;
 	if (!ParseType(typeName, ite))
 		return false;
-	auto type = GetType(typeName.typeName, typeName.typeArrSize);
+	auto type = GetType(typeName);
 	if (!type) return false;
 	JUMP_SPACE;
 	if (!IsKeyword(glb.charTypes.Get(*ite))) {
