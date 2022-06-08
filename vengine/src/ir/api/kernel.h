@@ -7,6 +7,7 @@ public:
 	vstd::ObjectStackAlloc allocator;
 	static Type const* GetBuiltinType(vstd::HashCache<vstd::string_view> const& description);
 	vstd::vector<Callable const*> callables;
+	Callable const* mainCallable;
 	vstd::span<Type const*> types;
 	vstd::vector<ConstantVar const*> constants;
 	Callable const* kernel;

@@ -400,6 +400,7 @@ static bool Fset_accel_visibility(StatementName& s, StatementName::FuncCall cons
 static bool Fset_accel_transform_visibility(StatementName& s, StatementName::FuncCall const& funcPack) { return s.BuiltInFunc(CallOp::SET_ACCEL_TRANSFORM_VISIBILITY, funcPack); }
 static bool Ftrace_closest(StatementName& s, StatementName::FuncCall const& funcPack) { return s.BuiltInFunc(CallOp::TRACE_CLOSEST, funcPack); }
 static bool Ftrace_any(StatementName& s, StatementName::FuncCall const& funcPack) { return s.BuiltInFunc(CallOp::TRACE_ANY, funcPack); }
+static bool Finit(StatementName& s, StatementName::FuncCall const& funcPack) { return s.BuiltInFunc(CallOp::INIT, funcPack); }
 // Binary
 static bool Fadd(StatementName& s, StatementName::FuncCall const& funcPack) { return s.BinaryOpCall(BinaryOp::ADD, funcPack); }
 static bool Fsub(StatementName& s, StatementName::FuncCall const& funcPack) { return s.BinaryOpCall(BinaryOp::SUB, funcPack); }
@@ -552,6 +553,7 @@ void StatementName::Init() {
 	REGIST_FUNC(Fset_accel_transform_visibility, set_accel_transform_visibility);
 	REGIST_FUNC(Ftrace_closest, trace_closest);
 	REGIST_FUNC(Ftrace_any, trace_any);
+	REGIST_FUNC(Finit, init);
 	//Binary Op
 	REGIST_FUNC(Fadd, add);
 	REGIST_FUNC(Fsub, sub);

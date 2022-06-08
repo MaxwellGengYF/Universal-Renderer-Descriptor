@@ -5,7 +5,7 @@
 #include <Common/Common.h>
 namespace toolhub::ir {
 
-enum struct CallOp : uint32_t {
+enum struct CallOp : uint8_t {
 	ALL,
 	ANY,
 
@@ -133,9 +133,12 @@ enum struct CallOp : uint32_t {
 	SET_ACCEL_TRANSFORM_VISIBILITY,
 	TRACE_CLOSEST,
 	TRACE_ANY,
+
+	INIT
 };
-static constexpr size_t CallOpCount = static_cast<size_t>(CallOp::TRACE_ANY) + 1;
-enum struct UnaryOp : uint32_t {
+static constexpr size_t CallOpCount = static_cast<size_t>(CallOp::INIT) + 1;
+static_assert(CallOpCount < std::numeric_limits<uint8_t>::max(), "use 8-bit int");
+enum struct UnaryOp : uint8_t {
 	PLUS,
 	MINUS,	// +x, -x
 	NOT,	// !x
@@ -147,7 +150,7 @@ static constexpr size_t UnaryOpCount = static_cast<size_t>(UnaryOp::CAST) + 1;
  * @brief Enum of binary operations
  * 
  */
-enum struct BinaryOp : uint32_t {
+enum struct BinaryOp : uint8_t {
 
 	// arithmetic
 	ADD,

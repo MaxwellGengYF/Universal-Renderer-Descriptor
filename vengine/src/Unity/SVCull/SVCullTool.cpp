@@ -25,7 +25,7 @@ public:
 	bool ParseFile(vstd::string const& path) const {
 		BinaryReader reader(path);
 		auto fileData = reader.ReadToString();
-		auto parseResult = db->GetRootNode()->Parse(fileData, false);
+		auto parseResult = db->GetRootNode()->Parse(fileData, true);
 		if (parseResult) {
 			return false;
 		}

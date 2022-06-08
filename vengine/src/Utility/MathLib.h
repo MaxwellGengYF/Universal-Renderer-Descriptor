@@ -201,4 +201,7 @@ public:
 		float objectToCameraDistance,
 		float sphereRadius);
 	static float GetHalton_Float(uint index);
+	static uint64 CalcAlign(uint64 value, uint64 align) {
+		return (value + (align - 1)) & ~(align - 1);
+	}
 };

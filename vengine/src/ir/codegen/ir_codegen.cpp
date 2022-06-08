@@ -58,6 +58,22 @@ void IRCodegen::GetTypeName(Type const* t, vstd::string& str) {
 			GetTypeName(t->element, str);
 			str << '>';
 		} break;
+		case Type::Tag::Texture: {
+			switch(t->dimension){
+				case 2:
+				str << "Texture2D<"_sv;
+				break;
+				case 3:
+				str << "Texture2D<"_sv;
+				break;
+			}
+			GetTypeName(t->element, str);
+			str << '>';
+		}
+		case Type::Tag::Accel:{
+			str << "Accel"_sv;
+		}
+		break;
 	}
 }
 vstd::string IRCodegen::Gen(Kernel const& kernel) {
@@ -70,6 +86,9 @@ vstd::string IRCodegen::Gen(Kernel const& kernel) {
 	for (auto&& c : kernel.callables) {
 		PrintFunc(*c, str, callableIdx);
 		callableIdx++;
+	}
+	if(kernel.mainCallable){
+		PrintFunc(*kernel.mainCallable, str, std::numeric_limits<size_t>::max());
 	}
 	return str;
 }
@@ -219,9 +238,9 @@ void IRCodegen::PrintStatement(Statement const* stmt, vstd::string& str) {
 			str << "switch(";
 			PrintVar(switchStmt->condition, str);
 			str << ")\n";
-			for(auto&& c : switchStmt->cases){
+			for (auto&& c : switchStmt->cases) {
 				str << "case(" << vstd::to_string(c.first) << ")\n";
-				for(auto&& s : c.second){
+				for (auto&& s : c.second) {
 					PrintStatement(s, str);
 				}
 				str << "endcase()\n";
@@ -257,8 +276,12 @@ void IRCodegen::PrintVar(Var const* var, vstd::string& str) {
 
 void IRCodegen::PrintFunc(Callable const& callable, vstd::string& str, size_t index) {
 	varMap.Clear();
-	str << "def callable_"_sv;
-	vstd::to_string(index, str);
+	if (index != std::numeric_limits<size_t>::max()) {
+		str << "def callable_"_sv;
+		vstd::to_string(index, str);
+	} else {
+		str << "def main"_sv;
+	}
 	str << '(';
 	for (auto a : vstd::range(callable.arguments.size())) {
 		auto arg = callable.arguments[a];

@@ -373,7 +373,10 @@ bool Parser::ParseFunction(char const*& ite) {
 	if (!callable)
 		return false;
 	recorder.ClearFunction();
-	kernel->callables.emplace_back(callable);
+	if (funcName == "main"_sv)
+		kernel->mainCallable = callable;
+	else
+		kernel->callables.emplace_back(callable);
 	return true;
 }
 bool Parser::ParseStatement(
@@ -450,14 +453,14 @@ bool Parser::ParseStatement(
 		}
 		++ite;
 		JUMP_SPACE;
-		if (!ParseType(returnTypeName, ite)){
+		if (!ParseType(returnTypeName, ite)) {
 			errorMsg = "error return type";
 			return false;
 		}
 	}
 	VarDescriptor varDesc(returnName, std::move(returnTypeName));
 	bool result = this->stateName.Run(stateName, std::move(varDesc), argNames);
-	if(!result){
+	if (!result) {
 		errorMsg = "illegal statement";
 	}
 	return result;
@@ -519,6 +522,7 @@ bool Parser::ParseConst(char const*& ite) {
 	}
 	auto result = kernel->allocator.Allocate<ConstantVar>();
 	kernel->constants.emplace_back(result);
+	recorder.globalVarMap.Emplace(varName, result);
 	auto Set = [&](size_t idx, auto& result) {
 		arrayResult[idx].visit([&](auto&& v) {
 			result = static_cast<std::remove_cvref_t<decltype(result)>>(v);
