@@ -1,5 +1,5 @@
 
-#include <VulkanImpl/HelloTriangleApplication.h>
+#include <HelloTriangleApplication.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -748,7 +748,6 @@ void HelloTriangleApplication::drawFrame() {
 		VEngine_Log("failed to submit draw command buffer!");
 		VENGINE_EXIT;
 	}
-	
 
 	VkPresentInfoKHR presentInfo{};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -776,10 +775,9 @@ void HelloTriangleApplication::createSyncObjects() {
 		VEngine_Log("failed to create semaphores!");
 		VENGINE_EXIT;
 	}
-
 }
-
 }// namespace toolhub::vulkan
+
 int main() {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);

@@ -1,8 +1,8 @@
 -- BuildBinary = 'FileRefresher'
 -- BuildBinary = 'FrustumCulling'
 -- BuildBinary = 'TextureTools'
-BuildBinary = 'VEngine_IR'
--- BuildBinary = 'VEngine_Vulkan'
+-- BuildBinary = 'VEngine_IR'
+BuildBinary = 'VEngine_Vulkan'
 function ProjFilter(name)
     if BuildBinary == name then
         return name
@@ -37,6 +37,16 @@ after_build(function(target)
         build_path = "$(buildir)/windows/x64/debug/"
     end
     os.cp("bin/*.dll", build_path)
+end)
+rule("copy_glfw")
+after_build(function(target)
+    local build_path = nil
+    if is_mode("release") then
+        build_path = "$(buildir)/windows/x64/release/"
+    else
+        build_path = "$(buildir)/windows/x64/debug/"
+    end
+    os.cp("src/glfw/glfw3.dll", build_path)
 end)
 
 -- Abseil
@@ -76,7 +86,7 @@ BuildProject({
     end,
     files = {"Unity/**.cpp"},
     includePaths = IncludePaths,
-    depends = {"VEngine_DLL"},
+    depends = "VEngine_DLL",
     unityBuildBatch = 4,
     exception = true
 })
@@ -89,7 +99,7 @@ BuildProject({
     end,
     files = {"Database/*.cpp"},
     includePaths = IncludePaths,
-    depends = {"VEngine_DLL"},
+    depends = "VEngine_DLL",
     exception = true
 })
 -- STB
@@ -100,7 +110,7 @@ BuildProject({
         return Macro({"STB_EXPORT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
     end,
     files = {"stb/*.cpp"},
-    depends = {"VEngine_DLL"},
+    depends = "VEngine_DLL",
     includePaths = IncludePaths,
     exception = true
 })
@@ -127,7 +137,7 @@ BuildProject({
     end,
     files = {"Graphics/**.cpp"},
     includePaths = IncludePaths,
-    depends = {"VEngine_DLL"},
+    depends = "VEngine_DLL",
     unityBuildBatch = 4,
     exception = true,
     links = "lib/dxcompiler"
@@ -161,9 +171,9 @@ BuildProject({
     macros = function()
         return Macro({"VENGINE_IR_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
     end,
-    files = {"ir/**.cpp"},
+    files = "ir/**.cpp",
     includePaths = IncludePaths,
-    depends = {"VEngine_DLL"},
+    depends = "VEngine_DLL",
     exception = true
 })
 -- VEngine_Vulkan
@@ -171,16 +181,17 @@ BuildProject({
     projectName = function()
         return ProjFilter("VEngine_Vulkan")
     end,
-    projectType = "shared",
+    projectType = "binary",
     macros = function()
         return Macro({"VENGINE_VULKAN_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
     end,
-    files = {"VulkanImpl/*.cpp"},
-    includePaths = {"./", "C:/VulkanSDK/1.3.204.0/Include/"},
-    depends = {"VEngine_DLL"},
+    files = {"VulkanImpl/**.cpp"},
+    includePaths = {"./", "C:/VulkanSDK/1.3.204.0/Include/", "./VulkanImpl/"},
+    depends = "VEngine_DLL",
     exception = true,
     links = {"C:/VulkanSDK/1.3.204.0/Lib/vulkan-1", "lib/glfw3dll", "lib/glfw3", "User32", "kernel32", "Gdi32",
-             "Shell32"}
+             "Shell32"},
+    rules = "copy_glfw"
 })
 -- File refresher
 BuildProject({
@@ -193,7 +204,7 @@ BuildProject({
     end,
     files = {"CPPBuilder/FileRefresher.cpp"},
     includePaths = IncludePaths,
-    depends = {"VEngine_DLL"},
+    depends = "VEngine_DLL",
     exception = true
 })
 -- FrustumCulling
@@ -211,9 +222,9 @@ BuildProject({
     macros = function()
         return Macro({"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
     end,
-    files = {"Renderer/*.cpp"},
+    files = "Renderer/*.cpp",
     includePaths = IncludePaths,
-    depends = {"VEngine_DLL"},
+    depends = "VEngine_DLL",
     exception = true,
     rules = "copy_to_unity"
 })
