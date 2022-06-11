@@ -13,13 +13,25 @@ struct PipelineCachePrefixHeader {
 	bool operator==(PipelineCachePrefixHeader const& v) const;
 	bool operator!=(PipelineCachePrefixHeader const& v) { return !operator==(v); }
 };
-class Device {
-public:
-	VkDevice device;
-	VkAllocationCallbacks allocator;
-	VkPhysicalDeviceProperties deviceProperties;
-    PipelineCachePrefixHeader psoHeader;
+class Device : public vstd::IOperatorNewBase {
 	Device();
+
+public:
+	vstd::optional<uint32_t> computeFamily;
+	vstd::optional<uint32_t> presentFamily;
+
+	VkPhysicalDevice physicalDevice;
+	VkDevice device;
+	VkPhysicalDeviceProperties deviceProperties;
+	PipelineCachePrefixHeader psoHeader;
+	static VkAllocationCallbacks* Allocator() ;
+	static Device* CreateDevice(
+		VkInstance instance,
+		VkSurfaceKHR surface,
+		vstd::span<char const*> requiredFeatures,
+		vstd::span<char const*> validationLayers,
+		uint physicalDeviceIndex,
+		void* placedMemory = nullptr);
 	~Device();
 };
 }// namespace toolhub::vk

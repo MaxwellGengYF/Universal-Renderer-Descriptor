@@ -19,7 +19,7 @@ ShaderCode::ShaderCode(
 		cacheAvailable = false;
 		createInfo.initialDataSize = 0;
 	}
-	ThrowIfFailed(vkCreatePipelineCache(device->device, &createInfo, &device->allocator, &pipelineCache));
+	ThrowIfFailed(vkCreatePipelineCache(device->device, &createInfo, Device::Allocator(), &pipelineCache));
 }
 vstd::vector<vbyte> ShaderCode::GetPSOData() const {
     vstd::vector<vbyte> data;
@@ -31,6 +31,6 @@ vstd::vector<vbyte> ShaderCode::GetPSOData() const {
     return data;
 }
 ShaderCode::~ShaderCode() {
-	vkDestroyPipelineCache(device->device, pipelineCache, &device->allocator);
+	vkDestroyPipelineCache(device->device, pipelineCache, Device::Allocator());
 }
 }// namespace toolhub::vk

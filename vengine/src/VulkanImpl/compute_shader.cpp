@@ -17,12 +17,12 @@ ComputeShader::ComputeShader(
 	});
 
 	VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-	ThrowIfFailed(vkCreateDescriptorSetLayout(device->device, &descriptorLayout, &device->allocator, &descriptorSetLayout));
+	ThrowIfFailed(vkCreateDescriptorSetLayout(device->device, &descriptorLayout, Device::Allocator(), &descriptorSetLayout));
 
 	VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 		vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
 
-	ThrowIfFailed(vkCreatePipelineLayout(device->device, &pPipelineLayoutCreateInfo, &device->allocator, &pipelineLayout));
+	ThrowIfFailed(vkCreatePipelineLayout(device->device, &pPipelineLayoutCreateInfo, Device::Allocator(), &pipelineLayout));
 	VkComputePipelineCreateInfo computePipelineCreateInfo =
 		vks::initializers::computePipelineCreateInfo(pipelineLayout, 0);
 	VkPipelineShaderStageCreateInfo shaderStage = {};
@@ -30,7 +30,7 @@ ComputeShader::ComputeShader(
 	shaderStage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
 	shaderStage.module = ShaderUtility::LoadShader(code.SpirvCode(), device->device);
 	shaderStage.pName = "main";
-	ThrowIfFailed(vkCreateComputePipelines(device->device, code.PipelineCache(), 1, &computePipelineCreateInfo, &device->allocator, &pipeline));
+	ThrowIfFailed(vkCreateComputePipelines(device->device, code.PipelineCache(), 1, &computePipelineCreateInfo, Device::Allocator(), &pipeline));
 }
 
 void ComputeShader::BindShader(
@@ -46,6 +46,6 @@ void ComputeShader::BindShader(
 	vkUpdateDescriptorSets(device->device, computeWriteDescriptorSets.size(), computeWriteDescriptorSets.data(), 0, nullptr);
 }
 ComputeShader::~ComputeShader() {
-	vkDestroyPipeline(device->device, pipeline, &device->allocator);
+	vkDestroyPipeline(device->device, pipeline, Device::Allocator());
 }
 }// namespace toolhub::vk
