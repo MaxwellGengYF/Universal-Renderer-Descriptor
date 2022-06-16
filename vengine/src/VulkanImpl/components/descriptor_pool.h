@@ -5,13 +5,13 @@ namespace toolhub::vk {
 class DescriptorPool : public Resource {
 protected:
 	VkDescriptorPool pool;
-	vstd::vector<VkDescriptorSet> sets;
 
 public:
 	DescriptorPool(Device const* device);
 	~DescriptorPool();
 	VkDescriptorSet Allocate(
 		VkDescriptorSetLayout layout);
-	void Clear();
+	void Destroy(VkDescriptorSet set);
+	void Destroy(vstd::span<VkDescriptorSet> set);
 };
 }// namespace toolhub::vk

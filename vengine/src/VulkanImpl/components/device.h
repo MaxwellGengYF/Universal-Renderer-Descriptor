@@ -13,23 +13,26 @@ struct PipelineCachePrefixHeader {
 	bool operator==(PipelineCachePrefixHeader const& v) const;
 	bool operator!=(PipelineCachePrefixHeader const& v) { return !operator==(v); }
 };
+class GPUAllocator;
 class Device : public vstd::IOperatorNewBase {
 	Device();
+	void Init();
 
 public:
+	vstd::unique_ptr<GPUAllocator> gpuAllocator;
 	vstd::optional<uint32_t> computeFamily;
 	vstd::optional<uint32_t> presentFamily;
-
+	VkInstance instance;
 	VkPhysicalDevice physicalDevice;
 	VkDevice device;
 	VkPhysicalDeviceProperties deviceProperties;
 	PipelineCachePrefixHeader psoHeader;
-	static VkAllocationCallbacks* Allocator() ;
+	static VkAllocationCallbacks* Allocator();
 	static Device* CreateDevice(
 		VkInstance instance,
 		VkSurfaceKHR surface,
-		vstd::span<char const*> requiredFeatures,
-		vstd::span<char const*> validationLayers,
+		vstd::span<char const* const> requiredFeatures,
+		vstd::span<char const* const> validationLayers,
 		uint physicalDeviceIndex,
 		void* placedMemory = nullptr);
 	~Device();

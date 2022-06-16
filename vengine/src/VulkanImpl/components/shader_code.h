@@ -2,7 +2,7 @@
 #include <components/resource.h>
 namespace toolhub::vk {
 class ShaderCode : public Resource {
-	vstd::vector<vbyte> spirvCode;
+	vstd::span<vbyte const> spirvCode;
 	VkPipelineCache pipelineCache;
 	bool cacheAvailable;
 
@@ -13,7 +13,7 @@ public:
 	vstd::vector<vbyte> GetPSOData() const;
 	ShaderCode(
 		Device const* device,
-		vstd::vector<vbyte>&& spirvCode,
+		vstd::span<vbyte const> spirvCode,
 		vstd::span<vbyte const> psoCache);
 	~ShaderCode();
 };

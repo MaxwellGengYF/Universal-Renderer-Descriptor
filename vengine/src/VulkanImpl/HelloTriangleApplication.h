@@ -3,7 +3,7 @@
 #include <Common/Common.h>
 #include <vulkan/vulkan.h>
 class GLFWwindow;
-namespace toolhub::vulkan {
+namespace toolhub::vk {
 class HelloTriangleApplication {
 	struct QueueFamilyIndices {
 		vstd::optional<uint32_t> graphicsFamily;
@@ -97,4 +97,4 @@ public:
 	HelloTriangleApplication();
 	~HelloTriangleApplication();
 };
-}// namespace toolhub::vulkan
+}// namespace toolhub::vk

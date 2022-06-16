@@ -6,8 +6,7 @@ DescriptorPool::DescriptorPool(Device const* device)
 	VkDescriptorPoolCreateInfo createInfo{
 		VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 		nullptr,
-		VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT | VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT
-	};
+		VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT | VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT};
 	vkCreateDescriptorPool(device->device, &createInfo, Device::Allocator(), &pool);
 	//TODO
 }
@@ -20,11 +19,12 @@ VkDescriptorSet DescriptorPool::Allocate(
 	VkDescriptorSetAllocateInfo allocInfo =
 		vks::initializers::descriptorSetAllocateInfo(pool, &layout, 1);
 	ThrowIfFailed(vkAllocateDescriptorSets(device->device, &allocInfo, &descriptorSet));
-	sets.emplace_back(descriptorSet);
 	return descriptorSet;
 }
-void DescriptorPool::Clear() {
-	vkFreeDescriptorSets(device->device, pool, sets.size(), sets.data());
-	sets.clear();
+void DescriptorPool::Destroy(VkDescriptorSet set) {
+	vkFreeDescriptorSets(device->device, pool, 1, &set);
+}
+void DescriptorPool::Destroy(vstd::span<VkDescriptorSet> set) {
+	vkFreeDescriptorSets(device->device, pool, set.size(), set.data());
 }
 }// namespace toolhub::vk

@@ -3,6 +3,9 @@
 -- BuildBinary = 'TextureTools'
 -- BuildBinary = 'VEngine_IR'
 BuildBinary = 'VEngine_Vulkan'
+
+VulkanLib = "C:/VulkanSDK/1.3.204.0/"
+
 function ProjFilter(name)
     if BuildBinary == name then
         return name
@@ -30,13 +33,22 @@ after_build(function(target)
 end)
 rule("copy_to_build")
 after_build(function(target)
+    if is_mode("release") then
+        os.cp("bin/release/*.dll", "$(buildir)/windows/x64/release/")
+    else
+        os.cp("bin/debug/*.dll", "$(buildir)/windows/x64/debug/")
+    end
+end)
+rule("copy_shaders")
+after_build(function(target)
     local build_path = nil
     if is_mode("release") then
         build_path = "$(buildir)/windows/x64/release/"
     else
         build_path = "$(buildir)/windows/x64/debug/"
     end
-    os.cp("bin/*.dll", build_path)
+    os.cp("shaders/*.compute", build_path)
+    os.cp("shaders/*.hlsl", build_path)
 end)
 rule("copy_glfw")
 after_build(function(target)
@@ -186,12 +198,19 @@ BuildProject({
         return Macro({"VENGINE_VULKAN_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
     end,
     files = {"VulkanImpl/**.cpp"},
-    includePaths = {"./", "C:/VulkanSDK/1.3.204.0/Include/", "./VulkanImpl/"},
+    includePaths = {"./", VulkanLib .. "Include/", "./VulkanImpl/"},
     depends = "VEngine_DLL",
     exception = true,
-    links = {"C:/VulkanSDK/1.3.204.0/Lib/vulkan-1", "lib/glfw3dll", "lib/glfw3", "User32", "kernel32", "Gdi32",
-             "Shell32"},
-    rules = "copy_glfw"
+    links = function()
+        local tab = {VulkanLib .. "Lib/vulkan-1", "lib/glfw3dll", "lib/glfw3", "User32", "kernel32", "Gdi32", "Shell32"}
+        if is_mode("debug") then
+            table.insert(tab, "lib/debug/shaderc_shared")
+        else
+            table.insert(tab, "lib/release/shaderc_shared")
+        end
+        return tab
+    end,
+    rules = {"copy_glfw", "copy_shaders"}
 })
 -- File refresher
 BuildProject({

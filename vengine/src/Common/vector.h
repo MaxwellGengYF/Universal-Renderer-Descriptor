@@ -104,7 +104,6 @@ private:
 public:
 	void reserve(size_t newCapacity) noexcept {
 		if (newCapacity <= mCapacity) return;
-		mCapacity = newCapacity;
 		T* newArr = Allocate(newCapacity);
 		if (vec.arr) {
 			if constexpr (std::is_trivially_move_constructible_v<T>) {
@@ -130,6 +129,8 @@ public:
 		} else {
 			vec.arr = newArr;
 		}
+		mCapacity = newCapacity;
+
 	}
 	T* data() noexcept { return vec.arr; }
 	T const* data() const noexcept { return vec.arr; }

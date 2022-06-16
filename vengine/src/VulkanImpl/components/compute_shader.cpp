@@ -1,0 +1,50 @@
+#include <components/compute_shader.h>
+#include <Common/small_vector.h>
+#include <vulkan_initializer.hpp>
+#include <components/descriptor_pool.h>
+#include <utility/shader_utility.h>
+#include <components/shader_code.h>
+namespace toolhub::vk {
+ComputeShader::ComputeShader(
+	Device const* device,
+	ShaderCode const& code,
+	vstd::span<VkDescriptorType> properties,
+	uint3 threadGroupSize)
+	: propertiesTypes(properties),
+	  threadGroupSize(threadGroupSize),
+	  Resource(device) {
+
+	vstd::small_vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
+	setLayoutBindings.push_back_func(properties.size(), [&](size_t i) {
+		VkDescriptorSetLayoutBinding binding{};
+		return vks::initializers::descriptorSetLayoutBinding(properties[i], VK_SHADER_STAGE_COMPUTE_BIT, i);
+	});
+
+	VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
+	ThrowIfFailed(vkCreateDescriptorSetLayout(device->device, &descriptorLayout, Device::Allocator(), &descriptorSetLayout));
+	//TODO: add bindless array descset layout
+	// bindless descset should be in Device class
+	VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
+		vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
+
+	ThrowIfFailed(vkCreatePipelineLayout(device->device, &pPipelineLayoutCreateInfo, Device::Allocator(), &pipelineLayout));
+	VkComputePipelineCreateInfo computePipelineCreateInfo =
+		vks::initializers::computePipelineCreateInfo(pipelineLayout, 0);
+	VkPipelineShaderStageCreateInfo shaderStage = {};
+	shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	shaderStage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	shaderStage.module = ShaderUtility::LoadShader(code.SpirvCode(), device->device);
+	shaderStage.pName = "main";
+	computePipelineCreateInfo.stage = shaderStage;
+	auto d = vstd::create_disposer([&] {
+		vkDestroyShaderModule(device->device, shaderStage.module, Device::Allocator());
+	});
+	ThrowIfFailed(vkCreateComputePipelines(device->device, code.PipelineCache(), 1, &computePipelineCreateInfo, Device::Allocator(), &pipeline));
+}
+
+ComputeShader::~ComputeShader() {
+	vkDestroyPipeline(device->device, pipeline, Device::Allocator());
+	vkDestroyPipelineLayout(device->device, pipelineLayout, Device::Allocator());
+	vkDestroyDescriptorSetLayout(device->device, descriptorSetLayout, Device::Allocator());
+}
+}// namespace toolhub::vk
