@@ -7,6 +7,9 @@ protected:
 	VkDescriptorPool pool;
 
 public:
+	static constexpr uint MAX_SET = 65536;
+	static constexpr uint MAX_RES = 65536;
+	static constexpr uint MAX_SAMP = 16;
 	DescriptorPool(Device const* device);
 	~DescriptorPool();
 	VkDescriptorSet Allocate(

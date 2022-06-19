@@ -1,0 +1,6 @@
+RWTexture2D<float> tex : register(u0, space0);
+[numthreads(256,1,1)]
+void main(uint id : SV_DISPATCHTHREADID)
+{
+    tex[uint2(id, 0)] = id;
+}

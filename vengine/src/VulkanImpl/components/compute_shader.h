@@ -5,7 +5,10 @@
 namespace toolhub::vk {
 class DescriptorSetManager;
 class ShaderCode;
+class CommandBuffer;
+
 class ComputeShader : public Resource {
+	friend class CommandBuffer;
 	VkDescriptorSetLayout descriptorSetLayout;
 	VkPipelineLayout pipelineLayout;
 	VkPipeline pipeline;
@@ -13,17 +16,13 @@ class ComputeShader : public Resource {
 	uint3 threadGroupSize;
 
 public:
+	uint3 ThreadGroupSize() const { return threadGroupSize; }
 	ComputeShader(
+		DescriptorSetManager const* descManager,
 		Device const* device,
 		ShaderCode const& code,
 		vstd::span<VkDescriptorType> properties,
 		uint3 threadGroupSize);
 	~ComputeShader();
-	//TODO
-	void Dispatch(
-		vstd::span<BindDescriptor> descriptors,
-		DescriptorSetManager& manager,
-		uint3 dispatchCount);
-		
 };
 }// namespace toolhub::vk

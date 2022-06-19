@@ -91,7 +91,8 @@ VmaBuffer::VmaBuffer(
 	size_t byteSize,
 	VkBufferUsageFlagBits usage,
 	bool crossQueueShared,
-	RWState hostRW) {
+	RWState hostRW,
+	size_t alignment) {
 	allocator = alloc.allocator;
 	VkBufferCreateInfo vbInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
 	vbInfo.size = byteSize;
@@ -110,13 +111,24 @@ VmaBuffer::VmaBuffer(
 	}
 	vbAllocCreateInfo.flags |= VMA_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT;
 	VmaAllocationInfo allocInfo;
-	vmaCreateBuffer(
-		alloc.allocator,
-		&vbInfo,
-		&vbAllocCreateInfo,
-		&buffer,
-		&this->alloc,
-		&allocInfo);
+	if (alignment > 1) {
+		vmaCreateBufferWithAlignment(
+			alloc.allocator,
+			&vbInfo,
+			&vbAllocCreateInfo,
+			alignment,
+			&buffer,
+			&this->alloc,
+			&allocInfo);
+	} else {
+		vmaCreateBuffer(
+			alloc.allocator,
+			&vbInfo,
+			&vbAllocCreateInfo,
+			&buffer,
+			&this->alloc,
+			&allocInfo);
+	}
 	mappedPtr = allocInfo.pMappedData;
 }
 VmaBuffer::~VmaBuffer() {
@@ -125,4 +137,45 @@ VmaBuffer::~VmaBuffer() {
 		buffer,
 		alloc);
 }
+VmaImage::VmaImage(
+	GPUAllocator& alloc,
+	VkImageType dimension,
+	uint3 size,
+	uint mip,
+	uint arrLayer,
+	VkFormat format) {
+	allocator = alloc.allocator;
+	VmaAllocationCreateInfo vbAllocCreateInfo = {};
+	vbAllocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	vbAllocCreateInfo.flags = VMA_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT;
+	VkImageCreateInfo imgInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+	//TODO: could be useful future
+	VmaAllocationInfo allocResult;
+	imgInfo.imageType = dimension;
+	imgInfo.extent.width = size.x;
+	imgInfo.extent.height = size.y;
+	imgInfo.extent.depth = size.z;
+	imgInfo.arrayLayers = arrLayer;
+	imgInfo.format = format;
+	imgInfo.mipLevels = mip;
+	imgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imgInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+	imgInfo.queueFamilyIndexCount = 1;
+	imgInfo.pQueueFamilyIndices = &alloc.device->computeFamily;
+	imgInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+	vmaCreateImage(
+		allocator,
+		&imgInfo,
+		&vbAllocCreateInfo,
+		&image,
+		&this->alloc,
+		&allocResult);
+}
+VmaImage::~VmaImage() {
+	vmaDestroyImage(
+		allocator,
+		image,
+		alloc);
+}
+
 }// namespace toolhub::vk

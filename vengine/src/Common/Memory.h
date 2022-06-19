@@ -31,13 +31,20 @@ struct allocator {
 };
 }// namespace vstd
 template<typename T, typename... Args>
-requires(std::is_constructible_v<T, Args...>)
-inline T* vengine_new(Args&&... args) noexcept {
+requires(std::is_constructible_v<T, Args...>) inline T* vengine_new(Args&&... args) noexcept {
 	T* tPtr = (T*)vengine_malloc(sizeof(T));
 	new (tPtr) T(std::forward<Args>(args)...);
 	return tPtr;
 }
 
+template<typename T, typename... Args>
+requires(std::is_constructible_v<T, Args...>) inline T* vengine_new_array(size_t arrayCount, Args&&... args) noexcept {
+	T* tPtr = (T*)vengine_malloc(sizeof(T) * arrayCount);
+	for (auto&& i : vstd::ptr_range(tPtr, tPtr + arrayCount)) {
+		new (&i) T(std::forward<Args>(args)...);
+	}
+	return tPtr;
+}
 template<typename T>
 inline void vengine_delete(T* ptr) noexcept {
 	if constexpr (!std::is_trivially_destructible_v<T>)

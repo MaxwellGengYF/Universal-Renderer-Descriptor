@@ -54,6 +54,7 @@ void Device::Init() {
 	gpuAllocator = vstd::create_unique(new GPUAllocator(this));
 }
 Device::~Device() {
+	gpuAllocator = nullptr;
 	vkDestroyDevice(device, Device::Allocator());
 }
 
@@ -117,7 +118,7 @@ Device* Device::CreateDevice(
 		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
 		int i = 0;
 		for (const auto& queueFamily : queueFamilies) {
-			if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+			if (!computeFamily && queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
 				computeFamily = i;
 			}
 			if (surface) {
@@ -177,9 +178,18 @@ Device* Device::CreateDevice(
 	if (vkCreateDevice(physicalDevice, &createInfo, Device::Allocator(), &device) != VK_SUCCESS) {
 		return nullptr;
 	}
+	if (!computeFamily) return nullptr;
 	Device* result = placedMemory ? new (placedMemory) Device() : new Device();
-	result->computeFamily = computeFamily;
-	result->presentFamily = presentFamily;
+	if (computeFamily) {
+		vkGetDeviceQueue(device, *computeFamily, 0, &result->computeQueue);
+		result->computeFamily = *computeFamily;
+	}
+	if (presentFamily) {
+		vkGetDeviceQueue(device, *presentFamily, 0, &result->presentQueue);
+		result->presentFamily = presentFamily;
+	} else {
+		result->presentQueue = nullptr;
+	}
 	result->physicalDevice = physicalDevice;
 	result->device = device;
 	result->instance = instance;

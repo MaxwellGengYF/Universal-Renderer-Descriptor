@@ -4,8 +4,10 @@
 #include <components/descriptor_pool.h>
 #include <utility/shader_utility.h>
 #include <components/shader_code.h>
+#include <runtime/descriptorset_manager.h>
 namespace toolhub::vk {
 ComputeShader::ComputeShader(
+	DescriptorSetManager const* descManager,
 	Device const* device,
 	ShaderCode const& code,
 	vstd::span<VkDescriptorType> properties,
@@ -16,7 +18,6 @@ ComputeShader::ComputeShader(
 
 	vstd::small_vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
 	setLayoutBindings.push_back_func(properties.size(), [&](size_t i) {
-		VkDescriptorSetLayoutBinding binding{};
 		return vks::initializers::descriptorSetLayoutBinding(properties[i], VK_SHADER_STAGE_COMPUTE_BIT, i);
 	});
 
@@ -24,8 +25,11 @@ ComputeShader::ComputeShader(
 	ThrowIfFailed(vkCreateDescriptorSetLayout(device->device, &descriptorLayout, Device::Allocator(), &descriptorSetLayout));
 	//TODO: add bindless array descset layout
 	// bindless descset should be in Device class
+	VkDescriptorSetLayout layouts[] = {
+		descriptorSetLayout,
+		descManager->SamplerSetLayout()};
 	VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
-		vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
+		vks::initializers::pipelineLayoutCreateInfo(layouts, vstd::array_count(layouts));
 
 	ThrowIfFailed(vkCreatePipelineLayout(device->device, &pPipelineLayoutCreateInfo, Device::Allocator(), &pipelineLayout));
 	VkComputePipelineCreateInfo computePipelineCreateInfo =

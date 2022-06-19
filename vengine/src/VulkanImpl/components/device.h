@@ -20,8 +20,10 @@ class Device : public vstd::IOperatorNewBase {
 
 public:
 	vstd::unique_ptr<GPUAllocator> gpuAllocator;
-	vstd::optional<uint32_t> computeFamily;
-	vstd::optional<uint32_t> presentFamily;
+	VkQueue computeQueue;
+	VkQueue presentQueue;
+	uint computeFamily;
+	vstd::optional<uint> presentFamily;
 	VkInstance instance;
 	VkPhysicalDevice physicalDevice;
 	VkDevice device;

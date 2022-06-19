@@ -1,5 +1,7 @@
 #include <components/descriptor_pool.h>
+#include <Common/small_vector.h>
 namespace toolhub::vk {
+
 //TODO:
 DescriptorPool::DescriptorPool(Device const* device)
 	: Resource(device) {
@@ -7,7 +9,16 @@ DescriptorPool::DescriptorPool(Device const* device)
 		VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 		nullptr,
 		VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT | VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT};
-	vkCreateDescriptorPool(device->device, &createInfo, Device::Allocator(), &pool);
+	createInfo.maxSets = MAX_SET;
+	vstd::small_vector<VkDescriptorPoolSize> descSizes;
+	descSizes.push_back(VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, MAX_RES});
+	descSizes.push_back(VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, MAX_RES});
+	descSizes.push_back(VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, MAX_RES});
+	descSizes.push_back(VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_SAMPLER, MAX_SAMP});
+	createInfo.pPoolSizes = descSizes.data();
+	createInfo.poolSizeCount = descSizes.size();
+
+	ThrowIfFailed(vkCreateDescriptorPool(device->device, &createInfo, Device::Allocator(), &pool));
 	//TODO
 }
 DescriptorPool::~DescriptorPool() {
@@ -22,9 +33,9 @@ VkDescriptorSet DescriptorPool::Allocate(
 	return descriptorSet;
 }
 void DescriptorPool::Destroy(VkDescriptorSet set) {
-	vkFreeDescriptorSets(device->device, pool, 1, &set);
+	ThrowIfFailed(vkFreeDescriptorSets(device->device, pool, 1, &set));
 }
 void DescriptorPool::Destroy(vstd::span<VkDescriptorSet> set) {
-	vkFreeDescriptorSets(device->device, pool, set.size(), set.data());
+	ThrowIfFailed(vkFreeDescriptorSets(device->device, pool, set.size(), set.data()));
 }
 }// namespace toolhub::vk

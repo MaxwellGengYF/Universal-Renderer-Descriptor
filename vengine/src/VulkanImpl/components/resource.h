@@ -1,8 +1,10 @@
 #pragma once
 #include <vulkan_include.h>
 #include <components/device.h>
+#include <Common/small_vector.h>
 namespace toolhub::vk {
-class Resource : public vstd::IOperatorNewBase{
+
+class Resource : public vstd::IOperatorNewBase {
 protected:
 	Device const* device;
 

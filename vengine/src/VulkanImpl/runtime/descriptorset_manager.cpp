@@ -1,9 +1,77 @@
 #include <runtime/descriptorset_manager.h>
 namespace toolhub::vk {
 DescriptorSetManager::DescriptorSetManager(Device const* device)
-	: pool(device), Resource(device) {}
+	: pool(device), Resource(device) {
+	// create sampler desc-set layout
+	VkDescriptorSetLayoutBinding binding =
+		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, 0, DescriptorPool::MAX_SAMP);
+	VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo({&binding, 1});
+	ThrowIfFailed(vkCreateDescriptorSetLayout(device->device, &descriptorLayout, Device::Allocator(), &samplerSetLayout));
+	samplerSet = pool.Allocate(samplerSetLayout);
+	VkFilter filters[4] = {
+		VK_FILTER_NEAREST,
+		VK_FILTER_LINEAR,
+		VK_FILTER_LINEAR,
+		VK_FILTER_LINEAR};
+	VkSamplerMipmapMode mipFilter[4] = {
+		VK_SAMPLER_MIPMAP_MODE_NEAREST,
+		VK_SAMPLER_MIPMAP_MODE_NEAREST,
+		VK_SAMPLER_MIPMAP_MODE_LINEAR,
+		VK_SAMPLER_MIPMAP_MODE_LINEAR};
+	VkSamplerAddressMode addressMode[4] = {
+		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
+		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER};
+
+	size_t idx = 0;
+	VkDescriptorImageInfo imageInfos[DescriptorPool::MAX_SAMP];
+	for (auto x : vstd::range(4))
+		for (auto y : vstd::range(4)) {
+			auto d = vstd::create_disposer([&] { ++idx; });
+			auto&& samp = samplers[idx];
+			VkSamplerCreateInfo createInfo{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+			createInfo.magFilter = filters[y];
+			createInfo.minFilter = filters[y];
+			createInfo.mipmapMode = mipFilter[y];
+			createInfo.addressModeU = addressMode[x];
+			createInfo.addressModeV = addressMode[x];
+			createInfo.addressModeW = addressMode[x];
+			createInfo.mipLodBias = 0;
+			createInfo.anisotropyEnable = y == 3;
+			createInfo.maxAnisotropy = DescriptorPool::MAX_SAMP;
+			createInfo.minLod = 0;
+			createInfo.maxLod = 255;
+			vkCreateSampler(
+				device->device,
+				&createInfo,
+				Device::Allocator(),
+				&samp);
+			imageInfos[idx].sampler = samp;
+		}
+	VkWriteDescriptorSet writeDesc{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+	writeDesc.dstSet = samplerSet;
+	writeDesc.dstBinding = 0;
+	writeDesc.dstArrayElement = 0;
+	writeDesc.descriptorCount = DescriptorPool::MAX_SAMP;
+	writeDesc.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+	writeDesc.pImageInfo = imageInfos;
+	vkUpdateDescriptorSets(device->device, 1, &writeDesc, 0, nullptr);
+}
 namespace detail {
 static thread_local DescriptorPool* gDescriptorPool;
+}
+DescriptorSetManager::~DescriptorSetManager() {
+	pool.Destroy(samplerSet);
+	detail::gDescriptorPool = &pool;
+	descSets.Clear();
+	vkDestroyDescriptorSetLayout(
+		device->device,
+		samplerSetLayout,
+		Device::Allocator());
+	for (auto&& i : samplers) {
+		vkDestroySampler(device->device, i, Device::Allocator());
+	}
 }
 DescriptorSetManager::DescriptorSets::~DescriptorSets() {
 	if (!sets.empty())
@@ -17,8 +85,8 @@ void DescriptorSetManager::DestroyPipelineLayout(VkDescriptorSetLayout layout) {
 }
 VkDescriptorSet DescriptorSetManager::Allocate(
 	VkDescriptorSetLayout layout,
-	vstd::span<VkDescriptorType> descTypes,
-	vstd::span<BindDescriptor> descriptors) {
+	vstd::span<VkDescriptorType const> descTypes,
+	vstd::span<BindDescriptor const> descriptors) {
 	assert(descTypes.size() == descriptors.size());
 	decltype(descSets)::Index ite;
 	{
@@ -39,16 +107,22 @@ VkDescriptorSet DescriptorSetManager::Allocate(
 		else
 			result = vec.erase_last();
 	}
+	allocatedSets.emplace_back(ite, result);
 	vstd::small_vector<VkWriteDescriptorSet> computeWriteDescriptorSets;
 	computeWriteDescriptorSets.push_back_func(descriptors.size(), [&](size_t i) {
 		return descriptors[i].visit_or(VkWriteDescriptorSet(), [&](auto&& v) {
-			return vks::initializers::writeDescriptorSet(result, descTypes[i], i, &v);
+			using PtrType = std::add_pointer_t<std::remove_cvref_t<decltype(v)>>;
+			return vks::initializers::writeDescriptorSet(result, descTypes[i], i, const_cast<PtrType>(&v));
 		});
 	});
 	vkUpdateDescriptorSets(device->device, computeWriteDescriptorSets.size(), computeWriteDescriptorSets.data(), 0, nullptr);
+	return result;
 }
-DescriptorSetManager::~DescriptorSetManager() {
-	detail::gDescriptorPool = &pool;
-	descSets.Clear();
+void DescriptorSetManager::EndFrame() {
+	for (auto&& i : allocatedSets) {
+		i.first.Value().sets.emplace_back(i.second);
+	}
+	allocatedSets.clear();
 }
+
 }// namespace toolhub::vk

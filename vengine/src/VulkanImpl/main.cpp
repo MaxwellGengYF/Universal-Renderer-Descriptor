@@ -3,6 +3,14 @@
 #include <Utility/BinaryReader.h>
 #include <components/compute_shader.h>
 #include <components/shader_code.h>
+#include <components/buffer.h>
+#include <components/descriptor_pool.h>
+#include <runtime/descriptorset_manager.h>
+#include <runtime/command_pool.h>
+#include <runtime/frame_resource.h>
+#include <render_graph/res_state_tracker.h>
+#include <components/texture.h>
+
 using namespace toolhub::vk;
 static auto validationLayers = {"VK_LAYER_KHRONOS_validation"};
 static VkInstance InitVkInstance() {
@@ -93,19 +101,103 @@ static VkInstance InitVkInstance() {
 	ThrowIfFailed(vkCreateInstance(&createInfo, Device::Allocator(), &instance));
 	return instance;
 }
-static void ComputeShaderTest(Device const* device, shaderc::SpvCompilationResult const& compResult) {
+static void ComputeShaderTest(Device const* device, shaderc::SpvCompilationResult const& compResult,
+							  shaderc::SpvCompilationResult const& writeResult) {
 	uint const* ptr = compResult.begin();
 	uint const* endPtr = compResult.end();
 	size_t size = reinterpret_cast<size_t>(endPtr) - reinterpret_cast<size_t>(ptr);
-	std::cout << "compile susccess, spirv data size: " << size << '\n';
 	ShaderCode shaderCode(device, {reinterpret_cast<vbyte const*>(ptr), size}, {});
+	ptr = writeResult.begin();
+	endPtr = writeResult.end();
+	size = reinterpret_cast<size_t>(endPtr) - reinterpret_cast<size_t>(ptr);
+	ShaderCode writeShaderCode(device, {reinterpret_cast<vbyte const*>(ptr), size}, {});
 	vstd::small_vector<VkDescriptorType> types;
 	types.emplace_back(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+	types.emplace_back(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+	DescriptorSetManager descManager(device);
 	ComputeShader cs(
+		&descManager,
 		device,
 		shaderCode,
 		types,
 		uint3(256, 1, 1));
+	types.clear();
+	types.emplace_back(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+
+	ComputeShader writeCS(
+		&descManager,
+		device,
+		writeShaderCode,
+		types,
+		uint3(256, 1, 1));
+	CommandPool cmdPool(device);
+	FrameResource frameRes(device, &cmdPool);
+	Buffer uploadBuffer(
+		device,
+		1024 * sizeof(float),
+		false,
+		RWState::Upload);
+	ResStateTracker stateTracker(device);
+	vstd::vector<float> value(1024);
+	uploadBuffer.CopyFrom({reinterpret_cast<vbyte const*>(value.data()), value.byte_size()}, 0);
+	Buffer readbackBuffer(
+		device,
+		1024 * sizeof(float),
+		false,
+		RWState::Readback);
+
+	Buffer buffer(
+		device,
+		1024 * sizeof(float),
+		false,
+		RWState::None);
+	Texture tex(
+		device,
+		uint3(1024, 1024, 1),
+		VK_FORMAT_R32_SFLOAT,
+		VK_IMAGE_TYPE_2D,
+		1);
+
+	if (auto cmdBuffer = frameRes.AllocateCmdBuffer()) {
+		vstd::small_vector<BindDescriptor> binder;
+		stateTracker.MarkTextureWrite(&tex, 0, TextureWriteState::Compute);
+		stateTracker.Execute(cmdBuffer);
+		binder.emplace_back(tex.GetDescriptorInfo(0, 1));
+		cmdBuffer->Dispatch(
+			&writeCS,
+			&descManager,
+			binder,
+			uint3(1024, 1, 1));
+
+		stateTracker.MarkBufferWrite(&buffer, BufferWriteState::Compute, ResourceUsage::ComputeOrCopy);
+		stateTracker.MarkTextureRead(TexView(&tex));
+		stateTracker.Execute(cmdBuffer);
+		binder.clear();
+		binder.emplace_back(buffer.GetDescriptor());
+		binder.emplace_back(tex.GetDescriptorInfo(0, 1));
+		cmdBuffer->Dispatch(
+			&cs,
+			&descManager,
+			binder,
+			uint3(1024, 1, 1));
+
+		stateTracker.MarkBufferRead(&buffer, BufferReadState::ComputeOrCopy, ResourceUsage::ComputeOrCopy);
+		stateTracker.MarkBufferWrite(&readbackBuffer, BufferWriteState::Compute, ResourceUsage::ComputeOrCopy);
+		stateTracker.Execute(cmdBuffer);
+		cmdBuffer->CopyBuffer(
+			&buffer,
+			0,
+			&readbackBuffer,
+			0,
+			value.byte_size());
+	}
+	frameRes.Execute(nullptr);
+	frameRes.Wait();
+	descManager.EndFrame();
+	readbackBuffer.CopyTo({reinterpret_cast<vbyte*>(value.data()), value.byte_size()}, 0);
+	for (auto&& i : value) {
+		std::cout << i << ' ';
+	}
 }
 int main() {
 	auto instance = InitVkInstance();
@@ -113,13 +205,18 @@ int main() {
 
 	shaderc::Compiler comp;
 	vstd::string shaderCode;
+	vstd::string writeTexCode;
 	{
 		BinaryReader reader("test.compute");
 		shaderCode = reader.ReadToString();
 	}
+	{
+		BinaryReader reader("write_tex.compute");
+		writeTexCode = reader.ReadToString();
+	}
 	shaderc::CompileOptions options;
 	options.SetOptimizationLevel(shaderc_optimization_level_performance);
-	options.SetSourceLanguage(shaderc_source_language_glsl);
+	options.SetSourceLanguage(shaderc_source_language_hlsl);
 	options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_3);
 	options.SetTargetSpirv(shaderc_spirv_version_1_3);
 
@@ -130,12 +227,25 @@ int main() {
 		"test.compute",
 		"main",
 		options);
+	auto writeTexCompileResult = comp.CompileGlslToSpv(
+		writeTexCode.data(),
+		writeTexCode.size(),
+		shaderc_compute_shader,
+		"write_tex.compute",
+		"main",
+		options);
+
 	auto errMsg = compileResult.GetErrorMessage();
 	if (errMsg.size() > 0) {
 		std::cout << errMsg << '\n';
 		return 1;
 	}
-    ComputeShaderTest(device, compileResult);
+	errMsg = writeTexCompileResult.GetErrorMessage();
+	if (errMsg.size() > 0) {
+		std::cout << errMsg << '\n';
+		return 1;
+	}
+	ComputeShaderTest(device, compileResult, writeTexCompileResult);
 	delete device;
 	vkDestroyInstance(instance, Device::Allocator());
 	std::cout << "finished\n";

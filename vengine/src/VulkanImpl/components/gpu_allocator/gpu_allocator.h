@@ -2,10 +2,12 @@
 #include <components/resource.h>
 #include <components/gpu_allocator/vk_mem_alloc.h>
 #include <components/gpu_allocator/vma_buffer.h>
+#include <components/gpu_allocator/vma_image.h>
 namespace toolhub::vk {
 
 class GPUAllocator : public Resource {
-	friend class VmaBuffer;
+	friend struct VmaBuffer;
+	friend struct VmaImage;
 	VmaAllocator allocator;
 
 public:

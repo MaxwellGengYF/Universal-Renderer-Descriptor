@@ -7,6 +7,8 @@
 #include <new>
 #include <Common/VAllocator.h>
 namespace vstd {
+static constexpr size_t FUNCTION_PLACEHOLDERSIZE = 40;
+
 template<class T, VEngine_AllocType allocType = VEngine_AllocType::VEngine>
 class function;
 template<class Ret,
@@ -16,8 +18,7 @@ class function<Ret(TypeArgs...), allocType> {
 	template<typename Call, VEngine_AllocType>
 	friend struct LazyCallback;
 	/////////////////////Define
-	static constexpr size_t PLACEHOLDERSIZE = 40;
-	using PlaceHolderType = std::aligned_storage_t<PLACEHOLDERSIZE, alignof(size_t)>;
+	using PlaceHolderType = std::aligned_storage_t<FUNCTION_PLACEHOLDERSIZE, alignof(size_t)>;
 	struct IProcessFunctor {
 		virtual void Delete(void* ptr) const = 0;
 		virtual void CopyConstruct(void*& dst, void const* src, PlaceHolderType* holder) const = 0;
@@ -101,7 +102,7 @@ public:
 		function(Functor&& f)
 	noexcept {
 		using PureType = std::remove_cvref_t<Functor>;
-		constexpr bool USE_HEAP = (sizeof(PureType) > PLACEHOLDERSIZE);
+		constexpr bool USE_HEAP = (sizeof(PureType) > FUNCTION_PLACEHOLDERSIZE);
 		struct FuncPtrLogic final : public IProcessFunctor {
 			void Delete(void* pp) const override {
 				PureType* ff = (PureType*)pp;
@@ -168,19 +169,156 @@ public:
 	}
 };
 
+template<class T, VEngine_AllocType allocType = VEngine_AllocType::VEngine>
+class move_only_func;
+template<class Ret,
+		 class... TypeArgs, VEngine_AllocType allocType>
+class move_only_func<Ret(TypeArgs...), allocType> {
+	using Allocator = VAllocHandle<allocType>;
+	template<typename Call, VEngine_AllocType>
+	friend struct LazyCallback;
+	/////////////////////Define
+	using PlaceHolderType = std::aligned_storage_t<FUNCTION_PLACEHOLDERSIZE, alignof(size_t)>;
+	struct IProcessFunctor {
+		virtual void Delete(void* ptr) const = 0;
+		virtual void MoveConstruct(void*& dst, void* src, PlaceHolderType* holder) const = 0;
+	};
+	using ProcessorHolder = std::aligned_storage_t<sizeof(IProcessFunctor), alignof(IProcessFunctor)>;
+	/////////////////////Data
+	void* placePtr;
+	funcPtr_t<Ret(void*, TypeArgs&&...)> runFunc;
+	ProcessorHolder logicPlaceHolder;
+	PlaceHolderType funcPtrPlaceHolder;
+	IProcessFunctor const* GetPtr() const noexcept {
+		return reinterpret_cast<IProcessFunctor const*>(&logicPlaceHolder);
+	}
+	template<typename Func>
+	static constexpr bool LegalFunction() {
+		if constexpr (std::is_same_v<std::remove_cvref_t<Func>, move_only_func>) {
+			return false;
+		} else {
+			return std::is_invocable_r_v<Ret, Func, TypeArgs...>;
+		}
+	}
+
+public:
+	operator bool() const noexcept {
+		return placePtr;
+	}
+	bool operator!() const {
+		return placePtr == nullptr;
+	}
+	void Dispose() noexcept {
+		if (placePtr) {
+			GetPtr()->Delete(placePtr);
+			placePtr = nullptr;
+		}
+		runFunc = nullptr;
+	}
+	move_only_func() noexcept
+		: placePtr(nullptr),
+		  runFunc(nullptr) {
+	}
+	move_only_func(std::nullptr_t) noexcept
+		: move_only_func() {
+	}
+	move_only_func(funcPtr_t<Ret(TypeArgs...)> p) noexcept {
+		struct FuncPtrLogic final : public IProcessFunctor {
+			void Delete(void* ptr) const override {
+			}
+			void MoveConstruct(void*& dst, void* src, PlaceHolderType* placeHolder) const override {
+				reinterpret_cast<size_t&>(dst) = reinterpret_cast<size_t>(src);
+			}
+		};
+		runFunc = [](void* pp, TypeArgs&&... tt) -> Ret {
+			funcPtr_t<Ret(TypeArgs...)> fp = reinterpret_cast<funcPtr_t<Ret(TypeArgs...)>>(const_cast<void*>(pp));
+			return fp(std::forward<TypeArgs>(tt)...);
+		};
+		new (&logicPlaceHolder) FuncPtrLogic();
+		reinterpret_cast<size_t&>(placePtr) = reinterpret_cast<size_t>(p);
+	}
+	move_only_func(const move_only_func& f) noexcept = delete;
+	move_only_func(move_only_func&& f) noexcept
+		: logicPlaceHolder(f.logicPlaceHolder),
+		  runFunc(f.runFunc) {
+		if (f.placePtr) {
+			GetPtr()->MoveConstruct(placePtr, f.placePtr, &funcPtrPlaceHolder);
+			f.placePtr = nullptr;
+		}
+		f.runFunc = nullptr;
+	}
+	template<typename Functor>
+	requires(LegalFunction<Functor>())
+		move_only_func(Functor&& f)
+	noexcept {
+		using PureType = std::remove_cvref_t<Functor>;
+		constexpr bool USE_HEAP = (sizeof(PureType) > FUNCTION_PLACEHOLDERSIZE);
+		struct FuncPtrLogic final : public IProcessFunctor {
+			void Delete(void* pp) const override {
+				PureType* ff = (PureType*)pp;
+				ff->~PureType();
+				if constexpr (USE_HEAP) {
+					Allocator().Free(pp);
+				}
+			}
+			void MoveConstruct(void*& dest, void* source, PlaceHolderType* placeHolder) const override {
+				if constexpr (!std::is_move_constructible_v<PureType>) {
+					VEngine_Log(typeid(PureType));
+					VENGINE_EXIT;
+				} else {
+					if constexpr (USE_HEAP) {
+						dest = source;
+					} else {
+						dest = placeHolder;
+						new (dest) PureType(
+							std::move(*reinterpret_cast<PureType*>(source)));
+					}
+				}
+			}
+		};
+		runFunc = [](void* pp, TypeArgs&&... tt) -> Ret {
+			PureType* ff = reinterpret_cast<PureType*>(pp);
+			return (*ff)(std::forward<TypeArgs>(tt)...);
+		};
+		new (&logicPlaceHolder) FuncPtrLogic();
+		if constexpr (USE_HEAP) {
+			placePtr = Allocator().Malloc(sizeof(PureType));
+		} else {
+			placePtr = &funcPtrPlaceHolder;
+		}
+		new (placePtr) PureType(std::forward<Functor>(f));
+	}
+	void operator=(std::nullptr_t) noexcept {
+		Dispose();
+	}
+	template<typename Functor>
+	void operator=(Functor&& f) noexcept {
+		this->~move_only_func();
+		new (this) move_only_func(std::forward<Functor>(f));
+	}
+	Ret operator()(TypeArgs... t) const noexcept {
+		return runFunc(placePtr, std::forward<TypeArgs>(t)...);
+	}
+	~move_only_func() noexcept {
+		if (placePtr) {
+			GetPtr()->Delete(placePtr);
+		}
+	}
+};
+
 template<typename Call, VEngine_AllocType allocType = VEngine_AllocType::VEngine>
 struct LazyCallback;
 
 template<typename R1, typename... A1, VEngine_AllocType allocType>
 class LazyCallback<R1(A1...), allocType> {
 private:
-	vstd::function<R1(A1...), allocType> callBack;
-	vstd::function<void()> disposer;
+	vstd::move_only_func<R1(A1...), allocType> callBack;
+	vstd::move_only_func<void()> disposer;
 
 public:
 	template<typename A, typename B>
 	requires(
-		std::is_constructible_v<vstd::function<R1(A1...)>, A&&> || std::is_constructible_v<vstd::function<void()>, B&&>)
+		std::is_constructible_v<vstd::move_only_func<R1(A1...)>, A&&> || std::is_constructible_v<vstd::move_only_func<void()>, B&&>)
 		LazyCallback(A&& a, B&& b)
 		: callBack(std::forward<A>(a)),
 		  disposer(std::forward<B>(b)) {}

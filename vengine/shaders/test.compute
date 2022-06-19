@@ -1,12 +1,8 @@
-#version 450
-layout (local_size_x = 256) in;
-
-layout(set = 0, binding = 0) buffer StorageBuffer
+RWStructuredBuffer<float> block : register(u0, space0);
+Texture2D<float> tex : register(t1, space0);
+SamplerState samps[16] : register(s0, space1);
+[numthreads(256,1,1)]
+void main(uint id : SV_DISPATCHTHREADID)
 {
-    float data[];
-} block;
-void main()
-{
-    uint gID = gl_GlobalInvocationID.x;
-    block.data[gID] *= 2.0f; 
+    block[id] = tex.SampleLevel(samps[3], float2((id + 0.5) / 1024.0, 1.0 / 1024.0), 0);
 }
