@@ -1,5 +1,5 @@
-#include <components/buffer_view.h>
-#include <components/tex_view.h>
+#include <types/buffer_view.h>
+#include <types/tex_view.h>
 #include <components/gpu_collection.h>
 namespace toolhub::vk {
 class Buffer;

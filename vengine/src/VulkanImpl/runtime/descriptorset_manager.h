@@ -24,6 +24,8 @@ private:
 	VkDescriptorSetLayout samplerSetLayout;
 	VkDescriptorSet samplerSet;
 	std::array<VkSampler, 16> samplers;
+	vstd::vector<VkWriteDescriptorSet> computeWriteRes;
+	vstd::vector<BindDescriptor> computeWriteDescriptorSets;
 
 public:
 	VkDescriptorSet SamplerSet() const { return samplerSet; }
@@ -35,7 +37,7 @@ public:
 	VkDescriptorSet Allocate(
 		VkDescriptorSetLayout layout,
 		vstd::span<VkDescriptorType const> descTypes,
-		vstd::span<BindDescriptor const> descriptors);
+		vstd::span<BindResource const> descriptors);
 	void EndFrame();
 };
 }// namespace toolhub::vk

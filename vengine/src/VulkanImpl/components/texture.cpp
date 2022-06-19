@@ -1,5 +1,5 @@
 #include <components/texture.h>
-#include <components/tex_view.h>
+#include <types/tex_view.h>
 namespace toolhub::vk {
 Texture::Texture(
 	Device const* device,
@@ -95,7 +95,7 @@ VkImageView Texture::GetImageView(uint mipLayer, uint mipCount) const {
 		.Value();
 }
 
-VkDescriptorImageInfo Texture::GetDescriptorInfo(uint mip, uint mipCount) const {
+VkDescriptorImageInfo Texture::GetDescriptor(uint mip, uint mipCount) const {
 	VkDescriptorImageInfo info;
 	info.imageView = GetImageView(mip, mipCount);
 	info.imageLayout = VkImageLayout(imageLayouts.get()[mip].load());

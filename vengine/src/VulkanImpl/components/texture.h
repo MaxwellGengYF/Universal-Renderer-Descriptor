@@ -28,6 +28,6 @@ public:
 	VkImageType Dimension() const { return dimension; }
 	uint Mip() const { return mip; }
 	Tag GetTag() const override { return Tag::Texture; }
-	VkDescriptorImageInfo GetDescriptorInfo(uint mipOffset, uint mipCount) const;
+	VkDescriptorImageInfo GetDescriptor(uint mipOffset, uint mipCount) const;
 };
 }// namespace toolhub::vk

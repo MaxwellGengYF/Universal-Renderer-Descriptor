@@ -4,6 +4,7 @@
 #include <components/buffer.h>
 #include <runtime/descriptorset_manager.h>
 #include <components/compute_shader.h>
+#include <render_graph/res_state_tracker.h>
 namespace toolhub::vk {
 CommandBuffer::~CommandBuffer() {
 	if (cmdBuffer) {
@@ -21,7 +22,22 @@ CommandBuffer::CommandBuffer(
 	ThrowIfFailed(vkResetCommandBuffer(cmdBuffer, 0));
 	ThrowIfFailed(vkBeginCommandBuffer(cmdBuffer, &info));
 }
-
+void CommandBuffer::PreprocessCopyBuffer(
+	ResStateTracker& stateTracker,
+	Buffer const* srcBuffer,
+	size_t srcOffset,
+	Buffer const* dstBuffer,
+	size_t dstOffset,
+	size_t size) {
+	stateTracker.MarkBufferRead(
+		BufferView(srcBuffer, srcOffset, size),
+		BufferReadState::ComputeOrCopy,
+		ResourceUsage::ComputeOrCopy);
+	stateTracker.MarkBufferWrite(
+		BufferView(dstBuffer, dstOffset, size),
+		BufferWriteState::Copy,
+		ResourceUsage::ComputeOrCopy);
+}
 void CommandBuffer::CopyBuffer(
 	Buffer const* srcBuffer,
 	size_t srcOffset,
@@ -29,12 +45,42 @@ void CommandBuffer::CopyBuffer(
 	size_t dstOffset,
 	size_t size) {
 	VkBufferCopy copyRegion{srcOffset, dstOffset, size};
+
 	vkCmdCopyBuffer(cmdBuffer, srcBuffer->GetResource(), dstBuffer->GetResource(), 1, &copyRegion);
+}
+void CommandBuffer::PreprocessDispatch(
+	ResStateTracker& stateTracker,
+	vstd::span<BindResource const> binds) {
+	for (auto&& desc : binds) {
+		desc.res.multi_visit(
+			[&](Texture const* t) {
+				if (desc.writable) {
+					stateTracker.MarkTextureWrite(
+						t, desc.offset, TextureWriteState::Compute);
+				} else {
+					stateTracker.MarkTextureRead(TexView(t, desc.offset, desc.size));
+				}
+			},
+			[&](Buffer const* b) {
+				auto bfView = BufferView(b, desc.offset, desc.size);
+				if (desc.writable) {
+					stateTracker.MarkBufferWrite(
+						bfView,
+						BufferWriteState::Compute,
+						ResourceUsage::ComputeOrCopy);
+				} else {
+					stateTracker.MarkBufferRead(
+						bfView,
+						BufferReadState::ComputeOrCopy,
+						ResourceUsage::ComputeOrCopy);
+				}
+			});
+	}
 }
 void CommandBuffer::Dispatch(
 	ComputeShader const* cs,
 	DescriptorSetManager* descManager,
-	vstd::span<BindDescriptor const> binds,
+	vstd::span<BindResource const> binds,
 	uint3 dispatchCount) {
 	vkCmdBindPipeline(
 		cmdBuffer,

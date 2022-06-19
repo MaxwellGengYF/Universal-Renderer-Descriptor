@@ -1,4 +1,5 @@
 #include <runtime/descriptorset_manager.h>
+#include <render_graph/res_state_tracker.h>
 namespace toolhub::vk {
 DescriptorSetManager::DescriptorSetManager(Device const* device)
 	: pool(device), Resource(device) {
@@ -86,7 +87,7 @@ void DescriptorSetManager::DestroyPipelineLayout(VkDescriptorSetLayout layout) {
 VkDescriptorSet DescriptorSetManager::Allocate(
 	VkDescriptorSetLayout layout,
 	vstd::span<VkDescriptorType const> descTypes,
-	vstd::span<BindDescriptor const> descriptors) {
+	vstd::span<BindResource const> descriptors) {
 	assert(descTypes.size() == descriptors.size());
 	decltype(descSets)::Index ite;
 	{
@@ -108,14 +109,43 @@ VkDescriptorSet DescriptorSetManager::Allocate(
 			result = vec.erase_last();
 	}
 	allocatedSets.emplace_back(ite, result);
-	vstd::small_vector<VkWriteDescriptorSet> computeWriteDescriptorSets;
-	computeWriteDescriptorSets.push_back_func(descriptors.size(), [&](size_t i) {
-		return descriptors[i].visit_or(VkWriteDescriptorSet(), [&](auto&& v) {
+	computeWriteDescriptorSets.clear();
+	computeWriteRes.clear();
+	computeWriteDescriptorSets.resize(descriptors.size());
+	computeWriteRes.resize(descriptors.size());
+	for (auto i : vstd::range(descriptors.size())) {
+		auto&& desc = descriptors[i];
+#ifdef DEBUG
+		switch (descTypes[i]) {
+			case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+			case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+			case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+				if (!desc.res.IsTypeOf<Texture const*>()) {
+					VEngine_Log("illegal binding");
+					VENGINE_EXIT;
+				}
+				break;
+			case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+			case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+				if (!desc.res.IsTypeOf<Buffer const*>()) {
+					VEngine_Log("illegal binding");
+					VENGINE_EXIT;
+				}
+				break;
+			default:
+				VEngine_Log("unsupported binding type");
+				VENGINE_EXIT;
+				break;
+		}
+#endif
+		auto& descSet = computeWriteDescriptorSets[i];
+		descSet = desc.GetDescriptor();
+		computeWriteRes[i] = descSet.visit_or(VkWriteDescriptorSet(), [&](auto&& v) {
 			using PtrType = std::add_pointer_t<std::remove_cvref_t<decltype(v)>>;
 			return vks::initializers::writeDescriptorSet(result, descTypes[i], i, const_cast<PtrType>(&v));
 		});
-	});
-	vkUpdateDescriptorSets(device->device, computeWriteDescriptorSets.size(), computeWriteDescriptorSets.data(), 0, nullptr);
+	}
+	vkUpdateDescriptorSets(device->device, computeWriteRes.size(), computeWriteRes.data(), 0, nullptr);
 	return result;
 }
 void DescriptorSetManager::EndFrame() {

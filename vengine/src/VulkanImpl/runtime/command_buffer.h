@@ -6,6 +6,7 @@ class FrameResource;
 class ComputeShader;
 class Buffer;
 class DescriptorSetManager;
+class ResStateTracker;
 class CommandBuffer : public Resource {
 	friend class FrameResource;
 	VkCommandBuffer cmdBuffer;
@@ -23,16 +24,26 @@ public:
 		v.cmdBuffer = nullptr;
 	}
 	~CommandBuffer();
+	void PreprocessCopyBuffer(
+		ResStateTracker& stateTracker,
+		Buffer const* srcBuffer,
+		size_t srcOffset,
+		Buffer const* dstBuffer,
+		size_t dstOffset,
+		size_t size);
 	void CopyBuffer(
 		Buffer const* srcBuffer,
 		size_t srcOffset,
 		Buffer const* dstBuffer,
 		size_t dstOffset,
 		size_t size);
+	void PreprocessDispatch(
+		ResStateTracker& stateTracker,
+		vstd::span<BindResource const> binds);
 	void Dispatch(
 		ComputeShader const* cs,
 		DescriptorSetManager* descManager,
-		vstd::span<BindDescriptor const> binds,
+		vstd::span<BindResource const> binds,
 		uint3 dispatchCount);
 };
 }// namespace toolhub::vk

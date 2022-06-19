@@ -159,31 +159,38 @@ static void ComputeShaderTest(Device const* device, shaderc::SpvCompilationResul
 		1);
 
 	if (auto cmdBuffer = frameRes.AllocateCmdBuffer()) {
-		vstd::small_vector<BindDescriptor> binder;
-		stateTracker.MarkTextureWrite(&tex, 0, TextureWriteState::Compute);
+		vstd::small_vector<BindResource> binder;
+		binder.emplace_back(TexView(&tex), true);
+		cmdBuffer->PreprocessDispatch(
+			stateTracker,
+			binder);
 		stateTracker.Execute(cmdBuffer);
-		binder.emplace_back(tex.GetDescriptorInfo(0, 1));
 		cmdBuffer->Dispatch(
 			&writeCS,
 			&descManager,
 			binder,
 			uint3(1024, 1, 1));
 
-		stateTracker.MarkBufferWrite(&buffer, BufferWriteState::Compute, ResourceUsage::ComputeOrCopy);
-		stateTracker.MarkTextureRead(TexView(&tex));
-		stateTracker.Execute(cmdBuffer);
 		binder.clear();
-		binder.emplace_back(buffer.GetDescriptor());
-		binder.emplace_back(tex.GetDescriptorInfo(0, 1));
+		binder.emplace_back(BufferView(&buffer), true);
+		binder.emplace_back(TexView(&tex), false);
+		cmdBuffer->PreprocessDispatch(
+			stateTracker,
+			binder);
+		stateTracker.Execute(cmdBuffer);
 		cmdBuffer->Dispatch(
 			&cs,
 			&descManager,
 			binder,
 			uint3(1024, 1, 1));
+		cmdBuffer->PreprocessCopyBuffer(
+			stateTracker,
+			&buffer,
+			0,
+			&readbackBuffer,
+			0,
+			value.byte_size());
 
-		stateTracker.MarkBufferRead(&buffer, BufferReadState::ComputeOrCopy, ResourceUsage::ComputeOrCopy);
-		stateTracker.MarkBufferWrite(&readbackBuffer, BufferWriteState::Compute, ResourceUsage::ComputeOrCopy);
-		stateTracker.Execute(cmdBuffer);
 		cmdBuffer->CopyBuffer(
 			&buffer,
 			0,

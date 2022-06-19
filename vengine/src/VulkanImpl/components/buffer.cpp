@@ -1,5 +1,5 @@
 #include <components/buffer.h>
-#include <components/buffer_view.h>
+#include <types/buffer_view.h>
 namespace toolhub::vk {
 Buffer::Buffer(
 	Device const* device,
