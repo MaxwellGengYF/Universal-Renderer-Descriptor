@@ -1,10 +1,13 @@
 #include <types/buffer_view.h>
 #include <types/tex_view.h>
-#include <components/gpu_collection.h>
+#include <components/resource.h>
+#include <bitset>
+#include <Common/BitArray.h>
 namespace toolhub::vk {
 class Buffer;
 class CommandBuffer;
 class Texture;
+class BindlessArray;
 enum class BufferReadState : vbyte {
 	ComputeOrCopy,
 	IndirectArgs,
@@ -43,14 +46,25 @@ class ResStateTracker : public Resource {
 		}
 	};
 	struct Barriers {
-		vstd::small_vector<VkBufferMemoryBarrier> bufferBarriers;
-		vstd::small_vector<VkImageMemoryBarrier> imageBarriers;
+		vstd::vector<VkBufferMemoryBarrier> bufferBarriers;
+		vstd::vector<VkImageMemoryBarrier> imageBarriers;
 	};
+	static constexpr size_t MAX_BITSET = 32;
+	struct MipBitset {
+		std::bitset<MAX_BITSET> bitset;
+		size_t refCount = 0;
+	};
+	vstd::vector<Barriers> barrierPool;
+	Barriers AllocateBarrier();
+	void ClearCollectMap();
 	using StagePair = std::pair<VkPipelineStageFlagBits, VkPipelineStageFlagBits>;
 	vstd::HashMap<StagePair, Barriers> collectedBarriers;
-	vstd::HashMap<GPUCollection const*, vstd::small_vector<Range>> readMap;
-	vstd::HashMap<GPUCollection const*, vstd::small_vector<Range>> writeMap;
-	vstd::HashMap<std::pair<Texture const*, uint>> texWriteMap;
+	vstd::HashMap<Buffer const*, vstd::small_vector<Range>> readMap;
+	vstd::HashMap<Buffer const*, vstd::small_vector<Range>> writeMap;
+	vstd::HashMap<Texture const*, MipBitset> texWriteMap;
+	vstd::vector<vstd::HashMap<Texture const*, MipBitset>::Index> needRemoveTex;
+	vstd::vector<vstd::HashMap<Buffer const*, vstd::small_vector<Range>>::Index> needRemoveBuffer;
+	void MarkTexMip(MipBitset& bitset, uint mip, bool state);
 
 	void MarkRange(
 		BufferView const& bufferView,
@@ -66,6 +80,7 @@ class ResStateTracker : public Resource {
 public:
 	void Reset();
 	void MarkBufferWrite(BufferView const& bufferView, BufferWriteState type, ResourceUsage usage);
+	void MarkBindlessRead(BindlessArray const& bdlsArr);
 	void MarkBufferRead(BufferView const& bufferView, BufferReadState type, ResourceUsage usage);
 	void MarkTextureWrite(Texture const* tex, uint targetMip, TextureWriteState type);
 	void MarkTextureRead(TexView const& tex);

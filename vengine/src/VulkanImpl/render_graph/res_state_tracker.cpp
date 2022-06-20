@@ -2,6 +2,7 @@
 #include <runtime/command_buffer.h>
 #include <components/buffer.h>
 #include <components/texture.h>
+#include <components/bindless_array.h>
 namespace toolhub::vk {
 namespace detail {
 static constexpr VkAccessFlagBits GENERIC_READ_ACCESS = VkAccessFlagBits(VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT);
@@ -90,7 +91,7 @@ static VkPipelineStageFlagBits GetTextureUsageStage(VkImageLayout layout) {
 }
 }// namespace detail
 void ResStateTracker::Reset() {
-	collectedBarriers.Clear();
+	ClearCollectMap();
 	readMap.Clear();
 	writeMap.Clear();
 	texWriteMap.Clear();
@@ -134,7 +135,7 @@ void ResStateTracker::MarkTexture(
 	if (srcLayout == dstLayout) return;
 	auto srcStage = detail::GetTextureUsageStage(srcLayout);
 	auto dstStage = detail::GetTextureUsageStage(dstLayout);
-	if(srcStage == 0){
+	if (srcStage == 0) {
 		srcStage = dstStage;
 	}
 	auto srcAccess = detail::GetTextureAccessFlag(srcLayout);
@@ -152,9 +153,27 @@ void ResStateTracker::MarkTexture(
 	subRange.levelCount = 1;
 	subRange.baseArrayLayer = 0;
 	subRange.layerCount = 1;
-	auto ite = collectedBarriers.Emplace(StagePair{srcStage, dstStage});
+	auto ite = collectedBarriers
+				   .Emplace(StagePair{srcStage, dstStage},
+							vstd::MakeLazyEval([&] {
+								return AllocateBarrier();
+							}));
 	ite.Value().imageBarriers.emplace_back(v);
 }
+ResStateTracker::Barriers ResStateTracker::AllocateBarrier() {
+	if (barrierPool.empty()) return {};
+	return barrierPool.erase_last();
+}
+void ResStateTracker::ClearCollectMap() {
+	barrierPool.reserve(barrierPool.size() + collectedBarriers.size());
+	for (auto&& k : collectedBarriers) {
+		k.second.bufferBarriers.clear();
+		k.second.imageBarriers.clear();
+		barrierPool.emplace_back(std::move(k.second));
+	}
+	collectedBarriers.Clear();
+}
+
 void ResStateTracker::MarkBufferWrite(BufferView const& bufferView, BufferWriteState type, ResourceUsage usage) {
 	auto ite = readMap.TryEmplace(bufferView.buffer);
 	auto dstState = detail::GetWriteAccessFlag(type);
@@ -165,6 +184,9 @@ void ResStateTracker::MarkBufferWrite(BufferView const& bufferView, BufferWriteS
 			ite.first.Value(),
 			dstState,
 			dstStage);
+	}
+	if (ite.first.Value().empty()) {
+		readMap.Remove(ite.first);
 	}
 	ite = writeMap.TryEmplace(bufferView.buffer);
 	auto& vec = ite.first.Value();
@@ -198,8 +220,15 @@ void ResStateTracker::MarkTextureWrite(Texture const* tex, uint targetMip, Textu
 	MarkTexture(
 		tex, targetMip,
 		detail::GetWriteAccessFlag(type));
-	texWriteMap.Emplace(std::pair<Texture const*, uint>{tex, targetMip});
+	MarkTexMip(texWriteMap.Emplace(tex).Value(), targetMip, true);
 }
+void ResStateTracker::MarkTexMip(MipBitset& bitset, uint mip, bool state) {
+	if (bitset.bitset[mip] != state) {
+		bitset.bitset[mip] = state;
+		bitset.refCount += state ? 1 : -1;
+	}
+}
+
 void ResStateTracker::MarkTextureRead(TexView const& tex) {
 	auto dstState = detail::GENERIC_READ_ACCESS;
 	auto dstLayout = detail::GetTextureLayout(dstState);
@@ -209,7 +238,16 @@ void ResStateTracker::MarkTextureRead(TexView const& tex) {
 			tex.tex,
 			i,
 			dstState);
-		texWriteMap.Remove(std::pair<Texture const*, uint>(tex.tex, i));
+	}
+	auto ite = texWriteMap.Find(tex.tex);
+	if (ite) {
+		auto&& v = ite.Value();
+		for (auto i : vstd::range(tex.mipOffset, tex.mipOffset + tex.mipCount)) {
+			MarkTexMip(v, i, false);
+		}
+		if (ite.Value().refCount == 0) {
+			texWriteMap.Remove(ite);
+		}
 	}
 }
 void ResStateTracker::Execute(CommandBuffer* cb) {
@@ -230,10 +268,48 @@ void ResStateTracker::Execute(CommandBuffer* cb) {
 			imageBarriers.size(),
 			imageBarriers.data());
 	}
-	collectedBarriers.Clear();
+	ClearCollectMap();
 }
 ResStateTracker::ResStateTracker(Device const* device)
 	: Resource(device) {}
 ResStateTracker::~ResStateTracker() {}
+void ResStateTracker::MarkBindlessRead(BindlessArray const& bdlsArr) {
+	needRemoveTex.clear();
+	needRemoveBuffer.clear();
+	needRemoveTex.reserve(texWriteMap.size());
+	needRemoveBuffer.reserve(writeMap.size());
+	auto dstState = detail::GENERIC_READ_ACCESS;
+	auto dstLayout = detail::GetTextureLayout(dstState);
+	auto dstStage = detail::GetTextureUsageStage(dstLayout);
+	for (auto ite = texWriteMap.begin(); ite != texWriteMap.end(); ++ite) {
+		auto tex = ite->first;
+		if (!bdlsArr.IsPtrInRes(tex)) continue;
+		auto&& set = ite->second;
+		for (auto mip : vstd::range(MAX_BITSET)) {
+			MarkTexture(
+				tex,
+				mip,
+				dstState);
+		}
+		needRemoveTex.emplace_back(texWriteMap.GetIndex(ite));
+	}
+	dstStage = detail::GetStageFlag(ResourceUsage::ComputeOrCopy);
+	for (auto ite = writeMap.begin(); ite != writeMap.end(); ++ite) {
+		auto buf = ite->first;
+		if (!bdlsArr.IsPtrInRes(buf)) continue;
+		MarkRange(
+			BufferView(buf),
+			ite->second,
+			dstState,
+			dstStage);
+		needRemoveBuffer.emplace_back(writeMap.GetIndex(ite));
+	}
+	for (auto&& i : needRemoveTex) {
+		texWriteMap.Remove(i);
+	}
+	for(auto&& i : needRemoveBuffer){
+		writeMap.Remove(i);
+	}
+}
 
 }// namespace toolhub::vk

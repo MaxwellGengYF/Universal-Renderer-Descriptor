@@ -302,6 +302,8 @@ public:
 	using NodePair = typename Map::ConstElement;
 	using MoveNodePair = typename Map::Element;
 	struct Iterator {
+		friend class HashMap;
+
 	private:
 		LinkNode** ii;
 
@@ -324,6 +326,8 @@ public:
 		}
 	};
 	struct MoveIterator {
+		friend class HashMap;
+
 	private:
 		LinkNode** ii;
 
@@ -371,6 +375,12 @@ public:
 		inline K const& Key() const noexcept;
 		inline ValueType Value() const noexcept;
 	};
+	Index GetIndex(Iterator const& ite) {
+		return Index(this, *ite.ii);
+	}
+	Index GetIndex(MoveIterator const& ite) {
+		return Index(this, *ite.ii);
+	}
 
 private:
 	LinkNode** nodeArray;
