@@ -7,6 +7,16 @@ public:
 	virtual uint64 Allocate(uint64 size) = 0;
 	virtual void DeAllocate(uint64 handle) = 0;
 };
+class VENGINE_DLL_COMMON DefaultMallocVisitor : public StackAllocatorVisitor {
+public:
+	uint64 Allocate(uint64 size) override;
+	void DeAllocate(uint64 handle) override;
+};
+class VENGINE_DLL_COMMON VEngineMallocVisitor : public StackAllocatorVisitor {
+public:
+	uint64 Allocate(uint64 size) override;
+	void DeAllocate(uint64 handle) override;
+};
 class VENGINE_DLL_COMMON StackAllocator {
 	StackAllocatorVisitor* visitor;
 	uint64 capacity;

@@ -4,7 +4,7 @@
 -- BuildBinary = 'VEngine_IR'
 BuildBinary = 'VEngine_Vulkan'
 
-VulkanLib = "C:/VulkanSDK/1.3.204.0/"
+VulkanLib = "C:/VulkanSDK/1.3.216.0/"
 
 function ProjFilter(name)
     if BuildBinary == name then
@@ -188,30 +188,7 @@ BuildProject({
     depends = "VEngine_DLL",
     exception = true
 })
--- VEngine_Vulkan
-BuildProject({
-    projectName = function()
-        return ProjFilter("VEngine_Vulkan")
-    end,
-    projectType = "binary",
-    macros = function()
-        return Macro({"VENGINE_VULKAN_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
-    end,
-    files = {"VulkanImpl/**.cpp"},
-    includePaths = {"./", VulkanLib .. "Include/", "./VulkanImpl/"},
-    depends = "VEngine_DLL",
-    exception = true,
-    links = function()
-        local tab = {VulkanLib .. "Lib/vulkan-1", "lib/glfw3dll", "lib/glfw3", "User32", "kernel32", "Gdi32", "Shell32"}
-        if is_mode("debug") then
-            table.insert(tab, "lib/debug/shaderc_shared")
-        else
-            table.insert(tab, "lib/release/shaderc_shared")
-        end
-        return tab
-    end,
-    rules = {"copy_glfw", "copy_shaders"}
-})
+
 -- File refresher
 BuildProject({
     projectName = function()
@@ -248,3 +225,28 @@ BuildProject({
     rules = "copy_to_unity"
 })
 
+-- VEngine_Vulkan
+BuildProject({
+    projectName = function()
+        return ProjFilter("VEngine_Vulkan")
+    end,
+    projectType = "binary",
+    macros = function()
+        return Macro({"VENGINE_VULKAN_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    end,
+    files = {"vulkan_impl/**.cpp", "dxc/*.cpp"},
+    includePaths = {"./"},
+    depends = "VEngine_DLL",
+    exception = true,
+    links = function()
+        local tab = {VulkanLib .. "Lib/vulkan-1", "User32", "kernel32", "Shell32"}
+        if is_mode("debug") then
+            table.insert(tab, "lib/debug/shaderc_shared")
+        else
+            table.insert(tab, "lib/release/shaderc_shared")
+        end
+        return tab
+    end,
+    rules = {"copy_glfw", "copy_shaders"},
+    unityBuildBatch = 4
+})

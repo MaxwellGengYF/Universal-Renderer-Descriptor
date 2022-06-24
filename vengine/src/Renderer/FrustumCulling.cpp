@@ -29,13 +29,16 @@ FrustumCulling::FrustumCulling(uint threadCount)
 FrustumCulling::~FrustumCulling() {
 }
 
-void FrustumCulling::Task(size_t i) {
-	auto&& v = args[i];
+void FrustumCulling::CamTask(size_t i) {
+	//TODO
+}
+void FrustumCulling::ShadowTask(size_t i) {
+	auto&& v = shadowArgs[i];
 	std::shared_lock lck(mtx);
 	CullCSM(v.first, v.second, i);
 }
 void FrustumCulling::CullCSM(CSMArgs const& args, vstd::span<ShadowmapData> cascades, size_t camCount) {
-	auto&& camVec = cullResults[camCount];
+	auto&& camVec = shaodwCullResults[camCount];
 	camVec.resize(max(camVec.size(), cascades.size()));
 	vstd::vector<std::pair<vec3, vec3>> camFrustumMinMax(cascades.size());
 	vstd::vector<std::array<vec4, 6>> camFrustumPlanes(cascades.size());
@@ -86,7 +89,7 @@ void FrustumCulling::CullCSM(CSMArgs const& args, vstd::span<ShadowmapData> casc
 			-zDepth,
 			0,
 			frustumPlanes);
-		for (auto idx : inVolumeObjs) {
+		for (auto idx : vstd::range(transforms.size())) {
 			auto&& obj = transforms[idx].first;
 			auto&& projBBox = transforms[idx].second;
 			auto&& minMax = camFrustumMinMax[i];
@@ -117,7 +120,6 @@ void FrustumCulling::CullCSM(CSMArgs const& args, vstd::span<ShadowmapData> casc
 }
 void FrustumCulling::CalcVolume() {
 	vstd::vector<BoxVolume> boxPlanes;
-	inVolumeObjs.clear();
 	boxPlanes.push_back_func(
 		bboxVolumes.size(),
 		[&](size_t i) {
@@ -148,6 +150,7 @@ void FrustumCulling::CalcVolume() {
 			return vol;
 		});
 	mat4 sunWorldToLocal = inverse(sunLocalToWorld);
+	/*
 	for (auto i : vstd::range(transforms.size())) {
 		[&] {
 			auto&& obj = transforms[i].first;
@@ -188,71 +191,117 @@ void FrustumCulling::CalcVolume() {
 			bbox.extent.z = zDepth * 0.5f;
 			inVolumeObjs.emplace_back(i);
 		}();
-	}
+	}*/
 }
 
 void FrustumCulling::ExecuteCull() {
 	tf::Taskflow flow;
-	flow.emplace_all(
-		[&] {
-			cullResults.resize(args.size());
-			sunLocalToWorld = GetCSMTransformMat(
-				sunRight,
-				sunUp,
-				sunForward,
-				vec3(0));
-			CalcVolume();
-		},
-		[&](size_t i) {
-			Task(i);
-		},
-		args.size(), executor.num_workers());
+	if (!shadowArgs.empty()) {
+		flow.emplace_all(
+			[&] {
+				shaodwCullResults.resize(shadowArgs.size());
+				sunLocalToWorld = GetCSMTransformMat(
+					sunRight,
+					sunUp,
+					sunForward,
+					vec3(0));
+				CalcVolume();
+			},
+			[&](size_t i) {
+				ShadowTask(i);
+			},
+			shadowArgs.size(), executor.num_workers());
+	}
+	if (!camArgs.empty()) {
+		flow.emplace_all(
+			[&] {
+				camCullResults.resize(camArgs.size());
+			},
+			[&](size_t i) {
+				CamTask(i);
+			},
+			camArgs.size(), executor.num_workers());
+	}
 	shadowTask = executor.run(std::move(flow));
 }
-
+namespace frustum_culling {
 static vstd::optional<FrustumCulling> context;
+}
 void FrustumCulling::Complete() {
 	shadowTask.wait();
 }
 VENGINE_UNITY_EXTERN void InitFrustumCullContext(uint threadCount) {
-	context.New(threadCount);
+	frustum_culling::context.New(threadCount);
 }
 VENGINE_UNITY_EXTERN void DestroyFrustumCullContext() {
-	if (context->shadowTask.valid()) {
-		context->shadowTask.wait();
+	if (frustum_culling::context->shadowTask.valid()) {
+		frustum_culling::context->shadowTask.wait();
 	}
-	context.Delete();
+	frustum_culling::context.Delete();
 }
 VENGINE_UNITY_EXTERN void AddCullObject(TRS const& data) {
-	std::lock_guard lck(context->mtx);
-	context->transforms.emplace_back(data, FrustumCulling::ProjectBBox{});
+	std::lock_guard lck(frustum_culling::context->mtx);
+	frustum_culling::context->transforms.emplace_back(data, ProjectBBox{});
 }
 VENGINE_UNITY_EXTERN void UpdateCullObject(TRS const& data, uint index) {
-	context->transforms[index].first = data;
+	frustum_culling::context->transforms[index].first = data;
 }
 VENGINE_UNITY_EXTERN void RemoveCullObject(uint idx) {
-	std::lock_guard lck(context->mtx);
-	if (idx < context->transforms.size() - 1)
-		context->transforms[idx] = context->transforms.erase_last();
+	std::lock_guard lck(frustum_culling::context->mtx);
+	if (idx < frustum_culling::context->transforms.size() - 1)
+		frustum_culling::context->transforms[idx] = frustum_culling::context->transforms.erase_last();
 	else
-		context->transforms.erase_last();
+		frustum_culling::context->transforms.erase_last();
 }
-
+/*
+VENGINE_UNITY_EXTERN uint64 AddCullInstance(
+	std::pair<TRS, ProjectBBox>* instanceTransforms,
+	size_t transformCount,
+	mat4* matArr) {
+	FrustumCulling::MeshInstance inst;
+	inst.transforms = {instanceTransforms, transformCount};
+	inst.ptr = matArr;
+	inst.resultCount = 0;
+	std::lock_guard lck(frustum_culling::context->mtx);
+	auto sz = frustum_culling::context->instances.size();
+	frustum_culling::context->instances.push_back(inst);
+	return sz;
+}
+VENGINE_UNITY_EXTERN void UpdateCullInstance(
+	size_t index,
+	std::pair<TRS, ProjectBBox>* instanceTransforms,
+	size_t transformCount,
+	mat4* matArr) {
+	FrustumCulling::MeshInstance inst;
+	inst.transforms = {instanceTransforms, transformCount};
+	inst.ptr = matArr;
+	inst.resultCount = 0;
+	std::lock_guard lck(frustum_culling::context->mtx);
+	frustum_culling::context->instances[index] = inst;
+}
+VENGINE_UNITY_EXTERN void RemoveCullInstance(
+	size_t idx) {
+	std::lock_guard lck(frustum_culling::context->mtx);
+	if (idx < frustum_culling::context->instances.size() - 1)
+		frustum_culling::context->instances[idx] = frustum_culling::context->instances.erase_last();
+	else
+		frustum_culling::context->instances.erase_last();
+}*/
 VENGINE_UNITY_EXTERN void ExecuteCull() {
-	context->ExecuteCull();
+	frustum_culling::context->ExecuteCull();
 }
 VENGINE_UNITY_EXTERN void CompleteCull() {
-	context->Complete();
+	frustum_culling::context->Complete();
 }
 VENGINE_UNITY_EXTERN void ClearCSM() {
-	context->args.clear();
+	frustum_culling::context->shadowArgs.clear();
 }
 VENGINE_UNITY_EXTERN uint BindCSM(
 	FrustumCulling::CSMArgs& args,
 	FrustumCulling::ShadowmapData* cascades,
 	uint cascadeCount) {
-	auto size = context->args.size();
-	context->args.emplace_back(
+	auto size = frustum_culling::context->shadowArgs.size();
+	frustum_culling::context->shadowArgs.emplace_back(
 		args,
 		vstd::vector<FrustumCulling::ShadowmapData>(cascades, cascadeCount));
 	return size;
@@ -262,10 +311,10 @@ VENGINE_UNITY_EXTERN void BindSunLight(
 	vec3 sunUp,
 	vec3 sunForward,
 	float zDepth) {
-	context->sunRight = sunRight;
-	context->sunUp = sunUp;
-	context->sunForward = sunForward;
-	context->zDepth = zDepth;
+	frustum_culling::context->sunRight = sunRight;
+	frustum_culling::context->sunUp = sunUp;
+	frustum_culling::context->sunForward = sunForward;
+	frustum_culling::context->zDepth = zDepth;
 }
 VENGINE_UNITY_EXTERN void CullingResult(
 	uint camIndex,
@@ -273,18 +322,18 @@ VENGINE_UNITY_EXTERN void CullingResult(
 	FrustumCulling::ShadowmapData& shadowmapData,
 	uint*& resultArray,
 	uint& resultCount) {
-	vstd::span<uint> results(context->cullResults[camIndex][cascadeIndex]);
+	vstd::span<uint> results(frustum_culling::context->shaodwCullResults[camIndex][cascadeIndex]);
 	resultArray = results.data();
 	resultCount = results.size();
-	auto&& vec = context->args[camIndex].second;
+	auto&& vec = frustum_culling::context->shadowArgs[camIndex].second;
 	shadowmapData = vec[cascadeIndex];
 }
 VENGINE_UNITY_EXTERN void AddCullVolume(
 	TRS const& trs) {
-	context->bboxVolumes.emplace_back(trs);
+	frustum_culling::context->bboxVolumes.emplace_back(trs);
 }
 VENGINE_UNITY_EXTERN void ClearCullVolume() {
-	context->bboxVolumes.clear();
+	frustum_culling::context->bboxVolumes.clear();
 }
 }// namespace toolhub::renderer
 //#define EXPORT_EXE

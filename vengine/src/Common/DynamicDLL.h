@@ -18,9 +18,9 @@ class VENGINE_DLL_COMMON DynamicDLL final : public vstd::IOperatorNewBase {
 	struct IsFuncPtr<_Ret(Args...)> {
 		static constexpr bool value = true;
 	};
-	size_t GetFuncPtr(char const* name) const;
 
 public:
+	size_t GetFuncPtr(char const* name) const;
 	DynamicDLL(char const* fileName);
 	~DynamicDLL();
 	DynamicDLL(DynamicDLL const&) = delete;

@@ -28,6 +28,9 @@ public:
 		float resolution;
 		float nearPlane;
 	};
+	struct CamArgs : public CSMArgs {
+		float farPlane;
+	};
 	using CascadeArgs = std::pair<CSMArgs, vstd::vector<ShadowmapData>>;
 	struct BoxVolume {
 		std::array<vec4, 6> planes;
@@ -38,10 +41,12 @@ public:
 		vec3 center;
 		float radius;
 	};
-	struct ProjectBBox {
-		vec3 center;
-		vec3 extent;
-	};
+
+	/*struct MeshInstance {
+		vstd::span<std::pair<TRS, ProjectBBox>> transforms;
+		mat4* ptr;
+		size_t resultCount;
+	};*/
 	vec3 sunRight;
 	vec3 sunUp;
 	vec3 sunForward;
@@ -49,16 +54,22 @@ public:
 
 	mat4 sunLocalToWorld;
 	vstd::vector<TRS> bboxVolumes;
-	vstd::vector<size_t> inVolumeObjs;
+	//vstd::vector<size_t> inVolumeObjs;
 	std::shared_mutex mtx;
 	tf::Executor executor;
 	tf::Future<void> shadowTask;
-	vstd::vector<vstd::vector<vstd::vector<uint>>> cullResults;
+	vstd::vector<vstd::vector<vstd::vector<uint>>> shaodwCullResults;
+	vstd::vector<vstd::vector<uint>> camCullResults;
 	vstd::vector<std::pair<TRS, ProjectBBox>> transforms;
-	vstd::vector<CascadeArgs> args;
+
+	//vstd::vector<MeshInstance> instances;
+
+	vstd::vector<CascadeArgs> shadowArgs;
+	vstd::vector<CamArgs> camArgs;
 	FrustumCulling(uint threadCount);
 	~FrustumCulling();
-	void Task(size_t i);
+	void ShadowTask(size_t i);
+	void CamTask(size_t i);
 	void Complete();
 	void CullCSM(CSMArgs const& args, vstd::span<ShadowmapData> cascades, size_t camCount);
 	void ExecuteCull();

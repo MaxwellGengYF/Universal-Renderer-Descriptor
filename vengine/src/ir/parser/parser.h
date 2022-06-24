@@ -1,3 +1,4 @@
+#pragma once
 #include <Common/vstring.h>
 #include <ir/api/kernel.h>
 #include <ir/parser/command_recorder.h>
