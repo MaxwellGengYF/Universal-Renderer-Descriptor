@@ -15,7 +15,8 @@ public:
 	DescriptorPool(Device const* device);
 	~DescriptorPool();
 	VkDescriptorSet Allocate(
-		VkDescriptorSetLayout layout);
+		VkDescriptorSetLayout layout,
+		VkDescriptorSetVariableDescriptorCountAllocateInfo* info = nullptr);
 	void Destroy(VkDescriptorSet set);
 	void Destroy(vstd::span<VkDescriptorSet> set);
 };

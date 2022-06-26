@@ -1,46 +1,47 @@
-#define CLOSEST_HIT_RAY_FLAG (0)
-#define ANY_HIT_RAY_FLAG (RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER)
-struct RayPayload{
-    uint instId;
-    uint primId;
-    float2 uv;
-};
-RayPayload TraceClosest(RaytracingAccelerationStructure accel, RayDesc ray) {
-    RayQuery<CLOSEST_HIT_RAY_FLAG> q;
-    q.TraceRayInline(
-    accel,
-    CLOSEST_HIT_RAY_FLAG,
-    ~0,
-    ray);
-    RayPayload payload;
-    q.Proceed();
-    if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT) {
-        payload.instId = q.CommittedInstanceIndex();
-        payload.primId = q.CommittedPrimitiveIndex();
-        payload.uv = q.CommittedTriangleBarycentrics();
-        } else {
-        payload.instId = 4294967295u;
-    }
-    return payload;
-}
-bool TraceAny(RaytracingAccelerationStructure accel, RayDesc ray) {
-    RayQuery<ANY_HIT_RAY_FLAG> q;
-    q.TraceRayInline(
-    accel,
-    ANY_HIT_RAY_FLAG,
-    ~0,
-    ray);
-    q.Proceed();
-    return q.CommittedStatus() != COMMITTED_NOTHING;
-}
+// #define CLOSEST_HIT_RAY_FLAG (0)
+// #define ANY_HIT_RAY_FLAG (RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER)
+// struct RayPayload{
+//     uint instId;
+//     uint primId;
+//     float2 uv;
+// };
+// RayPayload TraceClosest(RaytracingAccelerationStructure accel, RayDesc ray) {
+//     RayQuery<CLOSEST_HIT_RAY_FLAG> q;
+//     q.TraceRayInline(
+//     accel,
+//     CLOSEST_HIT_RAY_FLAG,
+//     ~0,
+//     ray);
+//     RayPayload payload;
+//     q.Proceed();
+//     if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT) {
+//         payload.instId = q.CommittedInstanceIndex();
+//         payload.primId = q.CommittedPrimitiveIndex();
+//         payload.uv = q.CommittedTriangleBarycentrics();
+//         } else {
+//         payload.instId = 4294967295u;
+//     }
+//     return payload;
+// }
+// bool TraceAny(RaytracingAccelerationStructure accel, RayDesc ray) {
+//     RayQuery<ANY_HIT_RAY_FLAG> q;
+//     q.TraceRayInline(
+//     accel,
+//     ANY_HIT_RAY_FLAG,
+//     ~0,
+//     ray);
+//     q.Proceed();
+//     return q.CommittedStatus() != COMMITTED_NOTHING;
+// }
+
+//Texture2D<float> input[] : register(t0, space2);
+//SamplerState input[16] : register(s0, space3);
+// RaytracingAccelerationStructure accel : register(t1);
+
 RWStructuredBuffer<float> result : register(u0);
-RaytracingAccelerationStructure accel : register(t1);
+StructuredBuffer<float> input[] : register(t0, space1);
+
 [numthreads(1,1,1)]
 void main(uint id : SV_DISPATCHTHREADID){
-    RayDesc ray;
-    ray.Origin = float3(0.5,0.5,0);
-    ray.Direction = float3(0,0,1);
-    ray.TMin = 0;
-    ray.TMax = 0.5;
-    result[id] = TraceAny(accel, ray) ? 1 : 0;
+    result[id] = input[15][id];
 }

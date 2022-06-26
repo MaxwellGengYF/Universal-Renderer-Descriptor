@@ -1,6 +1,8 @@
 #include "mesh.h"
 #include <vulkan_impl/gpu_collection/buffer.h>
 #include <vulkan_impl/runtime/res_state_tracker.h>
+#include "query.h"
+#include <vulkan_impl/runtime/command_buffer.h>
 namespace toolhub::vk {
 Mesh::Mesh(Device const* device)
 	: GPUCollection(device) {
@@ -100,8 +102,8 @@ BuildInfo Mesh::Preprocess(
 		VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
 		&asBuildInfo, &triangleCount,
 		&buildSizeInfo);
-	auto bfSize = CalcAlign(buildSizeInfo.accelerationStructureSize, 256);
-	if (accelBuffer && accelBuffer->ByteSize() < buildSizeInfo.accelerationStructureSize) {
+	auto bfSize = buildSizeInfo.accelerationStructureSize;
+	if (accelBuffer && accelBuffer->ByteSize() < bfSize) {
 		addDisposeEvent([bf = std::move(accelBuffer)] {});
 	}
 	if (!accelBuffer) {
@@ -164,5 +166,71 @@ Mesh::~Mesh() {
 	if (accel) {
 		device->vkDestroyAccelerationStructureKHR(device->device, accel, Device::Allocator());
 	}
+}
+void Mesh::PreprocessLoadCompactSize(
+	ResStateTracker& stateTracker,
+	vstd::vector<VkAccelerationStructureKHR>& accels) {
+	stateTracker.MarkBufferRead(
+		accelBuffer.get(),
+		BufferReadState::BuildAccel);
+	accels.emplace_back(accel);
+}
+void Mesh::LoadCompactSize(
+	Device const* device,
+	VkCommandBuffer cb,
+	Query* query,
+	vstd::span<VkAccelerationStructureKHR> accels) {
+	query->Reset(accels.size());
+	device->vkCmdWriteAccelerationStructuresPropertiesKHR(
+		cb,
+		accels.size(),
+		accels.data(),
+		VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR,
+		query->Pool(),
+		0);
+}
+void Mesh::Compact(
+	CommandBuffer* cb,
+	size_t afterCompactSize,
+	ResStateTracker& stateTracker,
+	vstd::move_only_func<void(vstd::move_only_func<void()>&&)> const& addDisposeEvent) {
+	stateTracker.MarkBufferRead(
+		accelBuffer.get(),
+		BufferReadState::ComputeOrCopy);
+	auto newBuffer = new Buffer(
+		device,
+		afterCompactSize,
+		false,
+		RWState::Accel,
+		256);
+	stateTracker.MarkBufferWrite(
+		newBuffer,
+		BufferWriteState::Copy);
+	stateTracker.Execute(cb);
+	VkAccelerationStructureKHR newAccel;
+	{
+		VkAccelerationStructureCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
+		createInfo.buffer = newBuffer->GetResource();
+		createInfo.offset = 0;
+		createInfo.size = afterCompactSize;
+		createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+		ThrowIfFailed(device->vkCreateAccelerationStructureKHR(
+			device->device,
+			&createInfo,
+			Device::Allocator(),
+			&newAccel));
+	}
+	VkCopyAccelerationStructureInfoKHR createInfo{VK_STRUCTURE_TYPE_COPY_ACCELERATION_STRUCTURE_INFO_KHR};
+	createInfo.src = accel;
+	createInfo.dst = newAccel;
+	createInfo.mode = VK_COPY_ACCELERATION_STRUCTURE_MODE_COMPACT_KHR;
+	device->vkCmdCopyAccelerationStructureKHR(
+		cb->CmdBuffer(),
+		&createInfo);
+	addDisposeEvent([a = accel, device = this->device, b = std::move(accelBuffer)] {
+		device->vkDestroyAccelerationStructureKHR(device->device, a, Device::Allocator());
+	});
+	accel = newAccel;
+	accelBuffer = vstd::create_unique(newBuffer);
 }
 }// namespace toolhub::vk

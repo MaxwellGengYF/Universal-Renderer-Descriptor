@@ -57,6 +57,8 @@ void Device::Init() {
 	vkDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(vkGetDeviceProcAddr(device, "vkDestroyAccelerationStructureKHR"));
 	vkCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(device, "vkCmdBuildAccelerationStructuresKHR"));
 	vkGetAccelerationStructureDeviceAddressKHR = reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(vkGetDeviceProcAddr(device, "vkGetAccelerationStructureDeviceAddressKHR"));
+	vkCmdWriteAccelerationStructuresPropertiesKHR = reinterpret_cast<PFN_vkCmdWriteAccelerationStructuresPropertiesKHR>(vkGetDeviceProcAddr(device, "vkCmdWriteAccelerationStructuresPropertiesKHR"));
+	vkCmdCopyAccelerationStructureKHR = reinterpret_cast<PFN_vkCmdCopyAccelerationStructureKHR>(vkGetDeviceProcAddr(device, "vkCmdCopyAccelerationStructureKHR"));
 }
 Device::~Device() {
 	gpuAllocator = nullptr;
@@ -72,6 +74,7 @@ Device* Device::CreateDevice(
 	void* placedMemory) {
 	std::initializer_list<char const*> requiredFeatures = {
 		"VK_EXT_descriptor_indexing",
+		"VK_EXT_host_query_reset",
 		"VK_KHR_buffer_device_address",
 		"VK_KHR_deferred_host_operations",
 		"VK_KHR_acceleration_structure",
@@ -176,10 +179,14 @@ Device* Device::CreateDevice(
 	VkPhysicalDeviceFeatures deviceFeatures{};
 	vkGetPhysicalDeviceFeatures(physicalDevice, &deviceFeatures);
 	//bindless
-	VkPhysicalDeviceDescriptorIndexingFeaturesEXT indexingFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT};
+	VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT};
 	indexingFeatures.runtimeDescriptorArray = VK_TRUE;
 	indexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
 	indexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+	indexingFeatures.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+	indexingFeatures.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
+	indexingFeatures.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
+	indexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
 	VkPhysicalDeviceBufferDeviceAddressFeatures enabledBufferDeviceAddresFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES};
 	enabledBufferDeviceAddresFeatures.bufferDeviceAddress = VK_TRUE;
 	enabledBufferDeviceAddresFeatures.pNext = &indexingFeatures;
@@ -195,7 +202,13 @@ Device* Device::CreateDevice(
 	VkPhysicalDeviceRayQueryFeaturesKHR enabledRayQueryFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR};
 	enabledRayQueryFeatures.rayQuery = VK_TRUE;
 	enabledRayQueryFeatures.pNext = &enabledAccelerationStructureFeatures;
-	auto featureLinkQueue = &enabledRayQueryFeatures;
+
+	VkPhysicalDeviceHostQueryResetFeatures enableQueryReset{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_QUERY_RESET_FEATURES};
+	enableQueryReset.hostQueryReset = VK_TRUE;
+	enableQueryReset.pNext = &enabledRayQueryFeatures;
+
+	
+	auto featureLinkQueue = &enableQueryReset;
 
 	VkDeviceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;

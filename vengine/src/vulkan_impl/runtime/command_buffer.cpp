@@ -94,6 +94,8 @@ void CommandBuffer::Dispatch(
 		binds);
 	VkDescriptorSet sets[] = {
 		set,
+		descManager->BindlessBufferSet(),
+		descManager->BindlessTexSet(),
 		descManager->SamplerSet()};
 	vkCmdBindDescriptorSets(
 		cmdBuffer,

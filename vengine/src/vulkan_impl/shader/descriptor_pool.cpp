@@ -25,10 +25,12 @@ DescriptorPool::~DescriptorPool() {
 	vkDestroyDescriptorPool(device->device, pool, Device::Allocator());
 }
 VkDescriptorSet DescriptorPool::Allocate(
-	VkDescriptorSetLayout layout) {
+	VkDescriptorSetLayout layout,
+	VkDescriptorSetVariableDescriptorCountAllocateInfo* info) {
 	VkDescriptorSet descriptorSet;
 	VkDescriptorSetAllocateInfo allocInfo =
 		vks::initializers::descriptorSetAllocateInfo(pool, &layout, 1);
+	allocInfo.pNext = info;
 	ThrowIfFailed(vkAllocateDescriptorSets(device->device, &allocInfo, &descriptorSet));
 	return descriptorSet;
 }

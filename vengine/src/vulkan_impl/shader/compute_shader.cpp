@@ -27,6 +27,8 @@ ComputeShader::ComputeShader(
 	// bindless descset should be in Device class
 	VkDescriptorSetLayout layouts[] = {
 		descriptorSetLayout,
+		descManager->BindlessBufferLayout(),
+		descManager->BindlessTexLayout(),
 		descManager->SamplerSetLayout()};
 	VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 		vks::initializers::pipelineLayoutCreateInfo(layouts, vstd::array_count(layouts));

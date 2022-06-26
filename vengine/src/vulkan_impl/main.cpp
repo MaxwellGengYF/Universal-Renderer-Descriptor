@@ -12,7 +12,7 @@
 #include <vulkan_impl/rtx/mesh.h>
 #include <vulkan_impl/rtx/accel.h>
 #include <dxc/dxc_util.h>
-
+#include <vulkan_impl/rtx/query.h>
 using namespace toolhub::vk;
 static auto validationLayers = {"VK_LAYER_KHRONOS_validation"};
 static VkInstance InitVkInstance() {
@@ -116,7 +116,6 @@ static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob
 
 	vstd::small_vector<VkDescriptorType> types;
 	types.emplace_back(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-	types.emplace_back(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
 	DescriptorSetManager descManager(device);
 	ComputeShader cs(
 		&descManager,
@@ -124,189 +123,79 @@ static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob
 		shaderCode,
 		types,
 		uint3(1, 1, 1));
-	types.clear();
-	types.emplace_back(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+	Buffer defaultBuffer(
+		device,
+		sizeof(float),
+		false,
+		RWState::None,
+		0);
+	Buffer outputDefault(
+		device,
+		sizeof(float),
+		false,
+		RWState::None,
+		0);
+	descManager.AddBindlessUpdateCmd(
+		15,
+		&defaultBuffer);
+	descManager.UpdateBindless();
 
 	CommandPool cmdPool(device);
 	FrameResource frameRes(device, &cmdPool);
-	Buffer writeBuffer(
-		device,
-		4,
-		false,
-		RWState::None);
-	Buffer readbackBuffer(
-		device,
-		4,
-		false,
-		RWState::Readback);
-	Buffer instUpload(
-		device,
-		sizeof(VkAccelerationStructureInstanceKHR),
-		false,
-		RWState::Upload);
-	Buffer vertUpload(
-		device,
-		3 * sizeof(Vertex),
-		false,
-		RWState::Upload);
-	Buffer vertBuffer(
-		device,
-		3 * sizeof(Vertex),
-		false,
-		RWState::None);
-	Buffer triUpload(
-		device,
-		sizeof(Triangle),
-		false,
-		RWState::Upload);
-	Buffer triBuffer(
-		device,
-		sizeof(Triangle),
-		false,
-		RWState::None);
-	Mesh mesh(device);
-	Vertex verts[3]{
-		{float3(0.5f, 1.0f, 1.0f)},
-		{float3(0.0f, 0.0f, 1.0f)},
-		{float3(1.0f, 0.0f, 1.0f)}};
-	Triangle t{{0, 1, 2}};
-	vertUpload.CopyArrayFrom(
-		verts,
-		3,
-		0);
-	triUpload.CopyValueFrom(
-		t,
-		0);
-	Accel accel(device);
+
 	ResStateTracker stateTracker(device);
-	vstd::vector<BuildInfo> buildInfos;
-	vstd::vector<TopBuildInfo> topBuildInfos;
 	vstd::vector<vstd::move_only_func<void()>> disposeFuncs;
 	vstd::move_only_func<void(vstd::move_only_func<void()> &&)> addDisposeEvent = [&](auto&& v) { disposeFuncs.push_back(std::move(v)); };
-	vstd::optional<Buffer> scratchBuffer;
-	vstd::optional<Buffer> scratchBuffer1;
-	vstd::vector<VkBufferCopy> copyRanges;
+	BufferView readback;
 	if (auto cmdBuffer = frameRes.AllocateCmdBuffer()) {
+		auto upload = frameRes.AllocateUpload(4);
+		readback = frameRes.AllocateReadback(4);
+		float inputFloat = 365;
+		upload.buffer->CopyValueFrom(inputFloat, upload.offset);
 		stateTracker.MarkBufferWrite(
-			&vertBuffer,
-			BufferWriteState::Copy);
-		stateTracker.MarkBufferWrite(
-			&triBuffer,
+			&defaultBuffer,
 			BufferWriteState::Copy);
 		stateTracker.Execute(cmdBuffer);
 		cmdBuffer->CopyBuffer(
-			&vertUpload,
+			upload.buffer,
+			upload.offset,
+			&defaultBuffer,
 			0,
-			&vertBuffer,
-			0,
-			vertUpload.ByteSize());
-		cmdBuffer->CopyBuffer(
-			&triUpload,
-			0,
-			&triBuffer,
-			0,
-			triUpload.ByteSize());
-		buildInfos.push_back(
-			mesh.Preprocess(
-				stateTracker,
-				&vertBuffer,
-				sizeof(Vertex),
-				0,
-				vertBuffer.ByteSize(),
-				&triBuffer,
-				0,
-				triBuffer.ByteSize(),
-				false, false, true, false,
-				addDisposeEvent));
-		size_t scratchSize = 0;
-		for (auto&& i : buildInfos) {
-			scratchSize += i.scratchSize;
-		}
-		scratchBuffer.New(
-			device,
-			scratchSize,
-			false,
-			RWState::None,
-			256);
-		auto&& v = buildInfos[0];
-		v.scratchOffset = 0;
-		v.buffer = scratchBuffer;
-		mesh.Build(
-			cmdBuffer->CmdBuffer(),
-			buildInfos[0],
-			triBuffer.ByteSize());
-		buildInfos.clear();
-
-		topBuildInfos.push_back(
-			accel.Preprocess(
-				cmdBuffer,
-				stateTracker,
-				1,
-				false,
-				false,
-				true,
-				false,
-				1,
-				addDisposeEvent));
-		scratchSize = 0;
-		for (auto&& i : topBuildInfos) {
-			scratchSize += i.scratchSize;
-		}
-		scratchBuffer1.New(
-			device,
-			scratchSize,
-			false,
-			RWState::None,
-			256);
-		size_t instUploadOffset = 0;
-		auto&& topBuild = topBuildInfos[0];
-		topBuild.buffer = scratchBuffer1;
-		topBuild.scratchOffset = 0;
-		stateTracker.Execute(cmdBuffer);
-		accel.SetInstance(
-			0,
-			&mesh,
-			float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1),
-			&instUpload,
-			instUploadOffset,
-			copyRanges);
-
-		accel.Build(stateTracker, cmdBuffer, topBuild, instUpload.GetResource(), copyRanges, 1);
+			4);
 		stateTracker.MarkBufferRead(
-			accel.AccelBuffer(),
-			BufferReadState::UseAccel);
+			&defaultBuffer,
+			BufferReadState::ComputeOrCopy);
 		stateTracker.MarkBufferWrite(
-			&writeBuffer,
+			&outputDefault,
 			BufferWriteState::Compute);
 		stateTracker.Execute(cmdBuffer);
-		vstd::vector<BindResource> res;
-		res.emplace_back(&writeBuffer, true);
-		res.emplace_back(&accel);
+		vstd::vector<BindResource> binds;
+		binds.emplace_back(&outputDefault, true);
 		cmdBuffer->Dispatch(
 			&cs,
 			&descManager,
-			res,
+			binds,
 			uint3(1, 1, 1));
 		stateTracker.MarkBufferRead(
-			&writeBuffer,
+			&outputDefault,
 			BufferReadState::ComputeOrCopy);
 		stateTracker.Execute(cmdBuffer);
 		cmdBuffer->CopyBuffer(
-			&writeBuffer,
+			&outputDefault,
 			0,
-			&readbackBuffer,
-			0,
+			readback.buffer,
+			readback.offset,
 			4);
 	}
-	float v = 0;
 	frameRes.Execute(nullptr);
 	frameRes.Wait();
-	readbackBuffer.CopyValueTo(v, 0);
-	std::cout << v << '\n';
 	for (auto&& i : disposeFuncs) {
 		i();
 	}
 	descManager.EndFrame();
+	float readbackValue = 0;
+	readback.buffer->CopyValueTo(readbackValue, readback.offset);
+	std::cout << "result[0] value: " << readbackValue << '\n';
 }
 int main() {
 	auto instance = InitVkInstance();

@@ -30,13 +30,19 @@ private:
 	VkDescriptorSet bindlessBufferSet;
 	std::array<VkSampler, 16> samplers;
 	vstd::vector<VkWriteDescriptorSet> computeWriteRes;
+	vstd::vector<VkWriteDescriptorSet> bindlessWriteRes;
 	vstd::DefaultMallocVisitor mallocVisitor;
 	vstd::StackAllocator stackAlloc;
+	vstd::StackAllocator bindlessStackAlloc;
 	void InitBindless();
 
 public:
-	VkDescriptorSet SamplerSet() const { return samplerSet; }
+	VkDescriptorSetLayout BindlessBufferLayout() const { return bindlessBufferSetLayout; }
+	VkDescriptorSet BindlessBufferSet() const { return bindlessBufferSet; }
+	VkDescriptorSetLayout BindlessTexLayout() const { return bindlessTexSetLayout; }
+	VkDescriptorSet BindlessTexSet() const { return bindlessTexSet; }
 	VkDescriptorSetLayout SamplerSetLayout() const { return samplerSetLayout; }
+	VkDescriptorSet SamplerSet() const { return samplerSet; }
 	DescriptorPool* Pool() { return &pool; }
 	DescriptorSetManager(Device const* device);
 	~DescriptorSetManager();
@@ -46,5 +52,8 @@ public:
 		vstd::span<VkDescriptorType const> descTypes,
 		vstd::span<BindResource const> descriptors);
 	void EndFrame();
+	void AddBindlessUpdateCmd(size_t index, BufferView const& buffer);
+	void AddBindlessUpdateCmd(size_t index, TexView const& tex);
+	void UpdateBindless();
 };
 }// namespace toolhub::vk

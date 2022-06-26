@@ -5,6 +5,8 @@
 namespace toolhub::vk {
 class ResStateTracker;
 class Buffer;
+class Query;
+class CommandBuffer;
 class Mesh : public GPUCollection {
 	VkAccelerationStructureKHR accel = nullptr;
 	vstd::unique_ptr<Buffer> accelBuffer;
@@ -47,6 +49,21 @@ public:
 		VkCommandBuffer cb,
 		BuildInfo& buildBuffer,
 		size_t triangleBufferSize);
+	// compact
+	void PreprocessLoadCompactSize(
+		ResStateTracker& stateTracker,
+		vstd::vector<VkAccelerationStructureKHR>& accels);
+	static void LoadCompactSize(
+		Device const* device,
+		VkCommandBuffer cb,
+		Query* query,
+		vstd::span<VkAccelerationStructureKHR> accels);
+	void Compact(
+		CommandBuffer* cb,
+		size_t afterCompactSize,
+		ResStateTracker& stateTracker,
+		vstd::move_only_func<void(vstd::move_only_func<void()>&&)> const& addDisposeEvent);
+
 	~Mesh();
 };
 }// namespace toolhub::vk

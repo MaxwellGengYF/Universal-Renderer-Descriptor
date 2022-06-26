@@ -10,23 +10,32 @@ void DescriptorSetManager::InitBindless() {
 	setLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 	setLayoutBinding.binding = 0;
 	setLayoutBinding.descriptorCount = DescriptorPool::MAX_BINDLESS_SIZE;
-	VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo({&setLayoutBinding, 1});
+	VkDescriptorSetVariableDescriptorCountAllocateInfo bindlessSize{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO};
+	bindlessSize.pDescriptorCounts = &setLayoutBinding.descriptorCount;
+	bindlessSize.descriptorSetCount = 1;
 
+	VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo({&setLayoutBinding, 1});
+	descriptorLayout.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
 	VkDescriptorSetLayoutBindingFlagsCreateInfoEXT setLayoutBindingFlags{};
 	setLayoutBindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
 	setLayoutBindingFlags.bindingCount = 1;
-	VkDescriptorBindingFlagsEXT descriptorBindingFlags = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
+	VkDescriptorBindingFlagsEXT descriptorBindingFlags =
+		VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT
+		| VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
+		| VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
+		| VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT;
 	setLayoutBindingFlags.pBindingFlags = &descriptorBindingFlags;
 	descriptorLayout.pNext = &setLayoutBindingFlags;
 	ThrowIfFailed(vkCreateDescriptorSetLayout(device->device, &descriptorLayout, Device::Allocator(), &bindlessTexSetLayout));
-	bindlessTexSet = pool.Allocate(bindlessTexSetLayout);
+	bindlessTexSet = pool.Allocate(bindlessTexSetLayout, &bindlessSize);
 	setLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	ThrowIfFailed(vkCreateDescriptorSetLayout(device->device, &descriptorLayout, Device::Allocator(), &bindlessBufferSetLayout));
-	bindlessBufferSet = pool.Allocate(bindlessBufferSetLayout);
+	bindlessBufferSet = pool.Allocate(bindlessBufferSetLayout, &bindlessSize);
 }
 DescriptorSetManager::DescriptorSetManager(Device const* device)
 	: pool(device), Resource(device),
-	  stackAlloc(4096, &mallocVisitor) {
+	  stackAlloc(4096, &mallocVisitor),
+	  bindlessStackAlloc(4096, &mallocVisitor) {
 	// create sampler desc-set layout
 	VkDescriptorSetLayoutBinding binding =
 		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, 0, DescriptorPool::MAX_SAMP);
@@ -147,6 +156,7 @@ VkDescriptorSet DescriptorSetManager::Allocate(
 	allocatedSets.emplace_back(ite, result);
 	computeWriteRes.clear();
 	computeWriteRes.resize(descriptors.size());
+	memset(computeWriteRes.data(), 0, computeWriteRes.byte_size());
 	for (auto i : vstd::range(descriptors.size())) {
 		auto&& desc = descriptors[i];
 		auto&& writeDst = computeWriteRes[i];
@@ -155,8 +165,8 @@ VkDescriptorSet DescriptorSetManager::Allocate(
 				auto&& descType = descTypes[i];
 #ifdef DEBUG
 				if (descType != VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-					|| descType != VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
-					|| descType != VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) {
+					&& descType != VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
+					&& descType != VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) {
 					VEngine_Log("illegal binding");
 					VENGINE_EXIT;
 				}
@@ -173,7 +183,7 @@ VkDescriptorSet DescriptorSetManager::Allocate(
 				auto&& descType = descTypes[i];
 #ifdef DEBUG
 				if (descType != VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-					|| descType != VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) {
+					&& descType != VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) {
 					VEngine_Log("illegal binding");
 					VENGINE_EXIT;
 				}
@@ -190,7 +200,7 @@ VkDescriptorSet DescriptorSetManager::Allocate(
 #ifdef DEBUG
 				auto&& descType = descTypes[i];
 				if (descType != VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR
-					|| descType != VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV) {
+					&& descType != VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV) {
 					VEngine_Log("illegal binding");
 					VENGINE_EXIT;
 				}
@@ -215,16 +225,39 @@ VkDescriptorSet DescriptorSetManager::Allocate(
 
 				//writeDst
 			});
-		/*
-		auto& descSet = computeWriteDescriptorSets[i];
-		descSet = desc.GetDescriptor();
-		computeWriteRes[i] = descSet.visit_or(VkWriteDescriptorSet(), [&](auto&& v) {
-			using PtrType = std::add_pointer_t<std::remove_cvref_t<decltype(v)>>;
-			return vks::initializers::writeDescriptorSet(result, descTypes[i], i, const_cast<PtrType>(&v));
-		});*/
 	}
 	vkUpdateDescriptorSets(device->device, computeWriteRes.size(), computeWriteRes.data(), 0, nullptr);
 	return result;
+}
+void DescriptorSetManager::AddBindlessUpdateCmd(size_t index, BufferView const& buffer) {
+	auto&& writeDesc = bindlessWriteRes.emplace_back();
+	writeDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDesc.dstSet = bindlessBufferSet;
+	writeDesc.dstBinding = 0;
+	writeDesc.dstArrayElement = index;
+	writeDesc.descriptorCount = 1;
+	writeDesc.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	auto bf = stackAlloc.Allocate(sizeof(VkDescriptorBufferInfo));
+	auto ptr = reinterpret_cast<VkDescriptorBufferInfo*>(bf.handle + bf.offset);
+	*ptr = buffer.buffer->GetDescriptor(
+		buffer.offset,
+		buffer.size);
+	writeDesc.pBufferInfo = ptr;
+}
+void DescriptorSetManager::AddBindlessUpdateCmd(size_t index, TexView const& tex) {
+	auto&& writeDesc = bindlessWriteRes.emplace_back();
+	writeDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDesc.dstSet = bindlessTexSet;
+	writeDesc.dstBinding = 0;
+	writeDesc.dstArrayElement = index;
+	writeDesc.descriptorCount = 1;
+	writeDesc.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	auto bf = stackAlloc.Allocate(sizeof(VkDescriptorImageInfo));
+	auto ptr = reinterpret_cast<VkDescriptorImageInfo*>(bf.handle + bf.offset);
+	*ptr = tex.tex->GetDescriptor(
+		tex.mipOffset,
+		tex.mipCount);
+	writeDesc.pImageInfo = ptr;
 }
 void DescriptorSetManager::EndFrame() {
 	for (auto&& i : allocatedSets) {
@@ -232,5 +265,9 @@ void DescriptorSetManager::EndFrame() {
 	}
 	allocatedSets.clear();
 }
-
+void DescriptorSetManager::UpdateBindless() {
+	vkUpdateDescriptorSets(device->device, bindlessWriteRes.size(), bindlessWriteRes.data(), 0, nullptr);
+	bindlessWriteRes.clear();
+	bindlessStackAlloc.Clear();
+}
 }// namespace toolhub::vk
