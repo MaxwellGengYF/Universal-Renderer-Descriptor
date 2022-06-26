@@ -377,6 +377,7 @@ bool PipelineCachePrefixHeader::operator==(PipelineCachePrefixHeader const& v) c
 void Device::AddBindlessUpdateCmd(size_t index, BufferView const& buffer) const{
 	std::lock_guard lck(updateBindlessMtx);
 	auto&& writeDesc = bindlessWriteRes.emplace_back();
+	memset(&writeDesc, 0, sizeof(VkWriteDescriptorSet));
 	writeDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeDesc.dstSet = bindlessBufferSet;
 	writeDesc.dstBinding = 0;
@@ -393,6 +394,7 @@ void Device::AddBindlessUpdateCmd(size_t index, BufferView const& buffer) const{
 void Device::AddBindlessUpdateCmd(size_t index, TexView const& tex) const{
 	std::lock_guard lck(updateBindlessMtx);
 	auto&& writeDesc = bindlessWriteRes.emplace_back();
+	memset(&writeDesc, 0, sizeof(VkWriteDescriptorSet));
 	writeDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeDesc.dstSet = bindlessTexSet;
 	writeDesc.dstBinding = 0;

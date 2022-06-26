@@ -1,6 +1,7 @@
 #include "frame_resource.h"
 #include <vulkan_impl/vulkan_initializer.hpp>
 #include "command_pool.h"
+#include <vulkan_impl/gpu_collection/texture.h>
 namespace toolhub::vk {
 template<RWState state>
 uint64 BufferStackVisitor<state>::Allocate(uint64 size) {
@@ -79,36 +80,64 @@ void FrameResource::Execute(FrameResource const* lastFrame) {
 }
 
 void FrameResource::ExecuteCopy(CommandBuffer* cb) {
-	for (auto&& i : copyCmds) {
+	for (auto&& i : bufferCopyCmds) {
 		auto&& vec = i.second;
+		auto&& pair = i.first;
 		vkCmdCopyBuffer(
 			cb->cmdBuffer,
-			i.first.src->GetResource(),
-			i.first.dst->GetResource(),
+			pair.src->GetResource(),
+			pair.dst->GetResource(),
 			vec.size(),
 			vec.data());
 		vec.clear();
-		copyVecPool.emplace_back(std::move(vec));
+		bufferCopyVecPool.emplace_back(std::move(vec));
 	}
-	copyCmds.Clear();
+	for (auto&& i : imgCopyCmds) {
+		auto&& vec = i.second;
+		auto&& pair = i.first;
+		vkCmdCopyImage(
+			cb->cmdBuffer,
+			pair.src->GetResource(),
+			VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL,
+			pair.dst->GetResource(),
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			vec.size(),
+			vec.data());
+		vec.clear();
+		imgCopyVecPool.emplace_back(std::move(vec));
+	}
+	for (auto&& i : bufImgCopyCmds) {
+		auto&& vec = i.second;
+		auto&& pair = i.first;
+		vkCmdCopyBufferToImage(
+			cb->cmdBuffer,
+			pair.src->GetResource(),
+			pair.dst->GetResource(),
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			vec.size(),
+			vec.data());
+		vec.clear();
+		bufImgCopyVecPool.emplace_back(std::move(vec));
+	}
+	for (auto&& i : imgBufCopyCmds) {
+		auto&& vec = i.second;
+		auto&& pair = i.first;
+		vkCmdCopyImageToBuffer(
+			cb->cmdBuffer,
+			pair.src->GetResource(),
+			VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL,
+			pair.dst->GetResource(),
+			vec.size(),
+			vec.data());
+		vec.clear();
+		bufImgCopyVecPool.emplace_back(std::move(vec));
+	}
+	bufferCopyCmds.Clear();
+	imgCopyCmds.Clear();
+	bufImgCopyCmds.Clear();
+	imgBufCopyCmds.Clear();
 }
-void FrameResource::AddCopyCmd(
-	Buffer const* src,
-	uint64 srcOffset,
-	Buffer const* dst,
-	uint64 dstOffset,
-	uint64 size) {
-	auto ite = copyCmds.Emplace(
-		CopyBuffer{src, dst},
-		vstd::MakeLazyEval([&]() -> vstd::vector<VkBufferCopy> {
-			if (copyVecPool.empty()) return {};
-			return copyVecPool.erase_last();
-		}));
-	ite.Value().emplace_back(VkBufferCopy{
-		srcOffset,
-		dstOffset,
-		size});
-}
+
 void FrameResource::Wait() {
 	ThrowIfFailed(vkWaitForFences(
 		device->device,
@@ -150,5 +179,91 @@ BufferView FrameResource::AllocateDefault(
 	uint64 size,
 	uint64 align) {
 	return detail::AllocateBuffer(defaultAlloc, size, align);
+}
+namespace detail {
+template<typename Ele>
+decltype(auto) GetVecPoolLazyEval(vstd::vector<Ele>& vec) {
+	return vstd::MakeLazyEval([&]() -> Ele {
+		if (vec.empty()) return {};
+		return vec.erase_last();
+	});
+}
+}// namespace detail
+void FrameResource::AddCopyCmd(
+	Buffer const* src,
+	uint64 srcOffset,
+	Buffer const* dst,
+	uint64 dstOffset,
+	uint64 size) {
+	auto ite = bufferCopyCmds.Emplace(
+		CopyKey<Buffer, Buffer>{src, dst},
+		detail::GetVecPoolLazyEval(bufferCopyVecPool));
+	ite.Value().emplace_back(VkBufferCopy{
+		srcOffset,
+		dstOffset,
+		size});
+}
+void FrameResource::AddCopyCmd(
+	Texture const* src,
+	uint srcMip,
+	Texture const* dst,
+	uint dstMip) {
+	auto ite = imgCopyCmds.Emplace(
+		CopyKey<Texture, Texture>{src, dst},
+		detail::GetVecPoolLazyEval(imgCopyVecPool));
+	auto&& v = ite.Value().emplace_back();
+	v.srcSubresource.aspectMask = 0;
+	v.srcSubresource.baseArrayLayer = 0;
+	v.srcSubresource.layerCount = 1;
+	v.srcSubresource.mipLevel = srcMip;
+	v.dstSubresource.aspectMask = 0;
+	v.dstSubresource.baseArrayLayer = 0;
+	v.dstSubresource.layerCount = 1;
+	v.dstSubresource.mipLevel = dstMip;
+	auto sz = src->Size();
+	v.extent = {sz.x, sz.y, sz.z};
+	v.srcOffset = {0, 0, 0};
+	v.dstOffset = {0, 0, 0};
+}
+void FrameResource::AddCopyCmd(
+	Buffer const* src,
+	uint64 srcOffset,
+	Texture const* dst,
+	uint dstMip) {
+	auto ite = bufImgCopyCmds.Emplace(
+		CopyKey<Buffer, Texture>{src, dst},
+		detail::GetVecPoolLazyEval(bufImgCopyVecPool));
+	auto&& v = ite.Value().emplace_back();
+	v.bufferOffset = srcOffset;
+	v.bufferRowLength = 0;
+	v.bufferImageHeight = 0;
+	v.imageSubresource.aspectMask = 0;
+	v.imageSubresource.baseArrayLayer = 0;
+	v.imageSubresource.layerCount = 1;
+	v.imageSubresource.mipLevel = dstMip;
+	v.imageOffset = {0, 0, 0};
+	auto sz = dst->Size();
+	v.imageExtent = {sz.x, sz.y, sz.z};
+}
+void FrameResource::AddCopyCmd(
+	Texture const* src,
+	uint srcMipOffset,
+	uint srcMip,
+	Buffer const* dst,
+	uint64 dstOffset) {
+	auto ite = imgBufCopyCmds.Emplace(
+		CopyKey<Texture, Buffer>{src, dst},
+		detail::GetVecPoolLazyEval(bufImgCopyVecPool));
+	auto&& v = ite.Value().emplace_back();
+	v.bufferOffset = dstOffset;
+	v.bufferRowLength = 0;
+	v.bufferImageHeight = 0;
+	v.imageSubresource.aspectMask = 0;
+	v.imageSubresource.baseArrayLayer = 0;
+	v.imageSubresource.layerCount = 1;
+	v.imageSubresource.mipLevel = srcMip;
+	v.imageOffset = {0, 0, 0};
+	auto sz = src->Size();
+	v.imageExtent = {sz.x, sz.y, sz.z};
 }
 }// namespace toolhub::vk

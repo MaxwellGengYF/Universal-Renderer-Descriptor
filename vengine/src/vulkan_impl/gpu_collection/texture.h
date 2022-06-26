@@ -13,6 +13,7 @@ class Texture : public GPUCollection {
 	mutable vstd::spin_mutex mtx;
 
 public:
+	VkImageLayout GetLayout(uint mipLevel) const;
 	VkImageLayout TransformLayout(VkImageLayout newLayout, uint mipLevel) const;
 	VkImage GetResource() const { return image.image; }
 	Texture(

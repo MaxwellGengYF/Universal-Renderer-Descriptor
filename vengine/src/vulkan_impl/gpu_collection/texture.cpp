@@ -21,6 +21,9 @@ Texture::Texture(
 VkImageLayout Texture::TransformLayout(VkImageLayout newLayout, uint mipLevel) const {
 	return VkImageLayout(imageLayouts.get()[mipLevel].exchange(newLayout));
 }
+VkImageLayout Texture::GetLayout(uint mipLevel) const {
+	return static_cast<VkImageLayout>(imageLayouts.get()[mipLevel].load());
+}
 
 Texture::~Texture() {
 	for (auto&& i : imgViews) {
