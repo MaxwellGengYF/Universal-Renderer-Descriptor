@@ -14,10 +14,12 @@ CommandBuffer::~CommandBuffer() {
 	}
 }
 CommandBuffer::CommandBuffer(
+	DescriptorSetManager* descManager,
 	Device const* device,
 	VkCommandBuffer cmdBuffer,
 	FrameResource* pool)
 	: Resource(device),
+	  descManager(descManager),
 	  pool(pool), cmdBuffer(cmdBuffer) {
 	VkCommandBufferBeginInfo info{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
 	ThrowIfFailed(vkResetCommandBuffer(cmdBuffer, 0));
@@ -81,7 +83,6 @@ void CommandBuffer::PreprocessDispatch(
 }
 void CommandBuffer::Dispatch(
 	ComputeShader const* cs,
-	DescriptorSetManager* descManager,
 	vstd::span<BindResource const> binds,
 	uint3 dispatchCount) {
 	vkCmdBindPipeline(
@@ -94,9 +95,9 @@ void CommandBuffer::Dispatch(
 		binds);
 	VkDescriptorSet sets[] = {
 		set,
-		descManager->BindlessBufferSet(),
-		descManager->BindlessTexSet(),
-		descManager->SamplerSet()};
+		device->bindlessBufferSet,
+		device->bindlessTexSet,
+		device->samplerSet};
 	vkCmdBindDescriptorSets(
 		cmdBuffer,
 		VK_PIPELINE_BIND_POINT_COMPUTE,

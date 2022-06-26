@@ -5,10 +5,13 @@
 #include <vulkan_impl/types/bind_desriptor.h>
 #include <shared_mutex>
 #include <Utility/StackAllocator.h>
+#include <Common/LockFreeArrayQueue.h>
 namespace toolhub::vk {
 class DescriptorSetManager;
 class CommandBuffer;
 class DescriptorSetManager : public Resource {
+	friend class Device;
+
 public:
 	struct DescriptorSets {
 		vstd::small_vector<VkDescriptorSet> sets;
@@ -17,43 +20,24 @@ public:
 	};
 
 private:
-	std::shared_mutex mtx;
+	size_t glbIndex = 0;
 	using DescSetMap = vstd::HashMap<VkDescriptorSetLayout, DescriptorSets>;
 	DescSetMap descSets;
+	vstd::LockFreeArrayQueue<VkDescriptorSetLayout> removeList;
 	vstd::vector<std::pair<DescSetMap::Index, VkDescriptorSet>> allocatedSets;
-	DescriptorPool pool;
-	VkDescriptorSetLayout samplerSetLayout;
-	VkDescriptorSet samplerSet;
-	VkDescriptorSetLayout bindlessTexSetLayout;
-	VkDescriptorSet bindlessTexSet;
-	VkDescriptorSetLayout bindlessBufferSetLayout;
-	VkDescriptorSet bindlessBufferSet;
-	std::array<VkSampler, 16> samplers;
 	vstd::vector<VkWriteDescriptorSet> computeWriteRes;
-	vstd::vector<VkWriteDescriptorSet> bindlessWriteRes;
-	vstd::DefaultMallocVisitor mallocVisitor;
 	vstd::StackAllocator stackAlloc;
-	vstd::StackAllocator bindlessStackAlloc;
-	void InitBindless();
+	DescriptorSetManager(DescriptorSetManager&&) = delete;
+	DescriptorSetManager(DescriptorSetManager const&) = delete;
 
 public:
-	VkDescriptorSetLayout BindlessBufferLayout() const { return bindlessBufferSetLayout; }
-	VkDescriptorSet BindlessBufferSet() const { return bindlessBufferSet; }
-	VkDescriptorSetLayout BindlessTexLayout() const { return bindlessTexSetLayout; }
-	VkDescriptorSet BindlessTexSet() const { return bindlessTexSet; }
-	VkDescriptorSetLayout SamplerSetLayout() const { return samplerSetLayout; }
-	VkDescriptorSet SamplerSet() const { return samplerSet; }
-	DescriptorPool* Pool() { return &pool; }
+	static void DestroyPipelineLayout(VkDescriptorSetLayout layout);
 	DescriptorSetManager(Device const* device);
 	~DescriptorSetManager();
-	void DestroyPipelineLayout(VkDescriptorSetLayout layout);
 	VkDescriptorSet Allocate(
 		VkDescriptorSetLayout layout,
 		vstd::span<VkDescriptorType const> descTypes,
 		vstd::span<BindResource const> descriptors);
 	void EndFrame();
-	void AddBindlessUpdateCmd(size_t index, BufferView const& buffer);
-	void AddBindlessUpdateCmd(size_t index, TexView const& tex);
-	void UpdateBindless();
 };
 }// namespace toolhub::vk

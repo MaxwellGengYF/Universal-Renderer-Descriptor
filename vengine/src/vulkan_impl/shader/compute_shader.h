@@ -3,7 +3,6 @@
 #include <vulkan_impl/components/resource.h>
 #include <Common/small_vector.h>
 namespace toolhub::vk {
-class DescriptorSetManager;
 class ShaderCode;
 class CommandBuffer;
 
@@ -18,7 +17,6 @@ class ComputeShader : public Resource {
 public:
 	uint3 ThreadGroupSize() const { return threadGroupSize; }
 	ComputeShader(
-		DescriptorSetManager const* descManager,
 		Device const* device,
 		ShaderCode const& code,
 		vstd::span<VkDescriptorType> properties,

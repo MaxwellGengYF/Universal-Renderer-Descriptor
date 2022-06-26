@@ -17,6 +17,7 @@ void BufferStackVisitor<state>::DeAllocate(uint64 handle) {
 }
 FrameResource::FrameResource(Device const* device, CommandPool* pool)
 	: Resource(device), pool(pool),
+	  descManager(device),
 	  uploadAlloc(INIT_STACK_SIZE, &uploadVisitor),
 	  defaultAlloc(INIT_STACK_SIZE, &defaultVisitor),
 	  readBackAlloc(INIT_STACK_SIZE, &readbackVisitor) {
@@ -54,7 +55,7 @@ vstd::optional<CommandBuffer> FrameResource::AllocateCmdBuffer() {
 		vkCmdBuffer = allocatedBuffers.erase_last();
 	}
 	needExecuteBuffers.emplace_back(vkCmdBuffer);
-	return CommandBuffer(device, vkCmdBuffer, this);
+	return CommandBuffer(&descManager, device, vkCmdBuffer, this);
 }
 void FrameResource::Execute(FrameResource const* lastFrame) {
 	if (executing && !needExecuteBuffers.empty()) return;
@@ -76,6 +77,7 @@ void FrameResource::Execute(FrameResource const* lastFrame) {
 	executing = true;
 	needExecuteBuffers.clear();
 }
+
 void FrameResource::ExecuteCopy(CommandBuffer* cb) {
 	for (auto&& i : copyCmds) {
 		auto&& vec = i.second;
@@ -119,6 +121,7 @@ void FrameResource::Wait() {
 	uploadAlloc.Clear();
 	defaultAlloc.Clear();
 	readBackAlloc.Clear();
+	descManager.EndFrame();
 }
 namespace detail {
 static BufferView AllocateBuffer(

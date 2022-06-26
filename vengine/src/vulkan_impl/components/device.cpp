@@ -1,6 +1,11 @@
 #include "device.h"
 #include <Common/small_vector.h>
 #include <vulkan_impl/gpu_allocator/gpu_allocator.h>
+#include <vulkan_impl/shader/descriptorset_manager.h>
+#include <vulkan_impl/types/buffer_view.h>
+#include <vulkan_impl/types/tex_view.h>
+#include <vulkan_impl/gpu_collection/buffer.h>
+#include <vulkan_impl/gpu_collection/texture.h>
 namespace toolhub::vk {
 namespace detail {
 class VulkanAllocatorImpl {
@@ -47,11 +52,71 @@ VkAllocationCallbacks* Device::Allocator() {
 	return &detail::gVulkanAllocatorImpl.allocator;
 }
 
-Device::Device() {
+Device::Device()
+	: bindlessStackAlloc(4096, &mallocVisitor) {
 }
 void Device::Init() {
 	psoHeader.Init(this);
 	gpuAllocator = vstd::create_unique(new GPUAllocator(this));
+	manager = vstd::create_unique(new DescriptorSetManager(this));
+	// create sampler desc-set layout
+	VkDescriptorSetLayoutBinding binding =
+		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, 0, DescriptorPool::MAX_SAMP);
+	VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo({&binding, 1});
+	ThrowIfFailed(vkCreateDescriptorSetLayout(device, &descriptorLayout, Device::Allocator(), &samplerSetLayout));
+	pool = vstd::create_unique(new DescriptorPool(this));
+	samplerSet = pool->Allocate(samplerSetLayout);
+	VkFilter filters[4] = {
+		VK_FILTER_NEAREST,
+		VK_FILTER_LINEAR,
+		VK_FILTER_LINEAR,
+		VK_FILTER_LINEAR};
+	VkSamplerMipmapMode mipFilter[4] = {
+		VK_SAMPLER_MIPMAP_MODE_NEAREST,
+		VK_SAMPLER_MIPMAP_MODE_NEAREST,
+		VK_SAMPLER_MIPMAP_MODE_LINEAR,
+		VK_SAMPLER_MIPMAP_MODE_LINEAR};
+	VkSamplerAddressMode addressMode[4] = {
+		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
+		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER};
+
+	size_t idx = 0;
+	VkDescriptorImageInfo imageInfos[DescriptorPool::MAX_SAMP];
+	for (auto x : vstd::range(4))
+		for (auto y : vstd::range(4)) {
+			auto d = vstd::create_disposer([&] { ++idx; });
+			auto&& samp = samplers[idx];
+			VkSamplerCreateInfo createInfo{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+			createInfo.magFilter = filters[y];
+			createInfo.minFilter = filters[y];
+			createInfo.mipmapMode = mipFilter[y];
+			createInfo.addressModeU = addressMode[x];
+			createInfo.addressModeV = addressMode[x];
+			createInfo.addressModeW = addressMode[x];
+			createInfo.mipLodBias = 0;
+			createInfo.anisotropyEnable = y == 3;
+			createInfo.maxAnisotropy = DescriptorPool::MAX_SAMP;
+			createInfo.minLod = 0;
+			createInfo.maxLod = 255;
+			vkCreateSampler(
+				device,
+				&createInfo,
+				Device::Allocator(),
+				&samp);
+			imageInfos[idx].sampler = samp;
+		}
+	VkWriteDescriptorSet writeDesc{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+	writeDesc.dstSet = samplerSet;
+	writeDesc.dstBinding = 0;
+	writeDesc.dstArrayElement = 0;
+	writeDesc.descriptorCount = DescriptorPool::MAX_SAMP;
+	writeDesc.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+	writeDesc.pImageInfo = imageInfos;
+	vkUpdateDescriptorSets(device, 1, &writeDesc, 0, nullptr);
+	InitBindless();
+
 	vkGetAccelerationStructureBuildSizesKHR = reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(vkGetDeviceProcAddr(device, "vkGetAccelerationStructureBuildSizesKHR"));
 	vkCreateAccelerationStructureKHR = reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(vkGetDeviceProcAddr(device, "vkCreateAccelerationStructureKHR"));
 	vkDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(vkGetDeviceProcAddr(device, "vkDestroyAccelerationStructureKHR"));
@@ -60,8 +125,65 @@ void Device::Init() {
 	vkCmdWriteAccelerationStructuresPropertiesKHR = reinterpret_cast<PFN_vkCmdWriteAccelerationStructuresPropertiesKHR>(vkGetDeviceProcAddr(device, "vkCmdWriteAccelerationStructuresPropertiesKHR"));
 	vkCmdCopyAccelerationStructureKHR = reinterpret_cast<PFN_vkCmdCopyAccelerationStructureKHR>(vkGetDeviceProcAddr(device, "vkCmdCopyAccelerationStructureKHR"));
 }
+void Device::InitBindless() {
+	VkDescriptorSetLayoutBinding setLayoutBinding{};
+	setLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	setLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	setLayoutBinding.binding = 0;
+	setLayoutBinding.descriptorCount = DescriptorPool::MAX_BINDLESS_SIZE;
+	VkDescriptorSetVariableDescriptorCountAllocateInfo bindlessSize{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO};
+	bindlessSize.pDescriptorCounts = &setLayoutBinding.descriptorCount;
+	bindlessSize.descriptorSetCount = 1;
+
+	VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo({&setLayoutBinding, 1});
+	descriptorLayout.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+	VkDescriptorSetLayoutBindingFlagsCreateInfoEXT setLayoutBindingFlags{};
+	setLayoutBindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
+	setLayoutBindingFlags.bindingCount = 1;
+	VkDescriptorBindingFlagsEXT descriptorBindingFlags =
+		VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT
+		| VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
+		| VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
+		| VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT;
+	setLayoutBindingFlags.pBindingFlags = &descriptorBindingFlags;
+	descriptorLayout.pNext = &setLayoutBindingFlags;
+	ThrowIfFailed(vkCreateDescriptorSetLayout(device, &descriptorLayout, Device::Allocator(), &bindlessTexSetLayout));
+	bindlessTexSet = pool->Allocate(bindlessTexSetLayout, &bindlessSize);
+	setLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	ThrowIfFailed(vkCreateDescriptorSetLayout(device, &descriptorLayout, Device::Allocator(), &bindlessBufferSetLayout));
+	bindlessBufferSet = pool->Allocate(bindlessBufferSetLayout, &bindlessSize);
+	bindlessIdx.push_back_func(DescriptorPool::MAX_BINDLESS_SIZE, [](size_t i) { return i; });
+}
+uint Device::AllocateBindlessIdx() const {
+	std::lock_guard lck(allocIdxMtx);
+	return bindlessIdx.erase_last();
+}
+void Device::DeAllocateBindlessIdx(uint index) const {
+	std::lock_guard lck(allocIdxMtx);
+	bindlessIdx.emplace_back(index);
+}
 Device::~Device() {
+	pool->Destroy(samplerSet);
+	pool->Destroy(bindlessTexSet);
+	pool->Destroy(bindlessBufferSet);
+	vkDestroyDescriptorSetLayout(
+		device,
+		bindlessTexSetLayout,
+		Device::Allocator());
+	vkDestroyDescriptorSetLayout(
+		device,
+		bindlessBufferSetLayout,
+		Device::Allocator());
+	vkDestroyDescriptorSetLayout(
+		device,
+		samplerSetLayout,
+		Device::Allocator());
+	for (auto&& i : samplers) {
+		vkDestroySampler(device, i, Device::Allocator());
+	}
+
 	gpuAllocator = nullptr;
+	pool = nullptr;
 	vkDestroyDevice(device, Device::Allocator());
 }
 
@@ -207,7 +329,6 @@ Device* Device::CreateDevice(
 	enableQueryReset.hostQueryReset = VK_TRUE;
 	enableQueryReset.pNext = &enabledRayQueryFeatures;
 
-	
 	auto featureLinkQueue = &enableQueryReset;
 
 	VkDeviceCreateInfo createInfo{};
@@ -252,5 +373,44 @@ void PipelineCachePrefixHeader::Init(Device const* device) {
 }
 bool PipelineCachePrefixHeader::operator==(PipelineCachePrefixHeader const& v) const {
 	return memcmp(this, &v, sizeof(PipelineCachePrefixHeader)) == 0;
+}
+void Device::AddBindlessUpdateCmd(size_t index, BufferView const& buffer) const{
+	std::lock_guard lck(updateBindlessMtx);
+	auto&& writeDesc = bindlessWriteRes.emplace_back();
+	writeDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDesc.dstSet = bindlessBufferSet;
+	writeDesc.dstBinding = 0;
+	writeDesc.dstArrayElement = index;
+	writeDesc.descriptorCount = 1;
+	writeDesc.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	auto bf = bindlessStackAlloc.Allocate(sizeof(VkDescriptorBufferInfo));
+	auto ptr = reinterpret_cast<VkDescriptorBufferInfo*>(bf.handle + bf.offset);
+	*ptr = buffer.buffer->GetDescriptor(
+		buffer.offset,
+		buffer.size);
+	writeDesc.pBufferInfo = ptr;
+}
+void Device::AddBindlessUpdateCmd(size_t index, TexView const& tex) const{
+	std::lock_guard lck(updateBindlessMtx);
+	auto&& writeDesc = bindlessWriteRes.emplace_back();
+	writeDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDesc.dstSet = bindlessTexSet;
+	writeDesc.dstBinding = 0;
+	writeDesc.dstArrayElement = index;
+	writeDesc.descriptorCount = 1;
+	writeDesc.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	auto bf = bindlessStackAlloc.Allocate(sizeof(VkDescriptorImageInfo));
+	auto ptr = reinterpret_cast<VkDescriptorImageInfo*>(bf.handle + bf.offset);
+	*ptr = tex.tex->GetDescriptor(
+		tex.mipOffset,
+		tex.mipCount);
+	writeDesc.pImageInfo = ptr;
+}
+
+void Device::UpdateBindless() const{
+	std::lock_guard lck(updateBindlessMtx);
+	vkUpdateDescriptorSets(device, bindlessWriteRes.size(), bindlessWriteRes.data(), 0, nullptr);
+	bindlessWriteRes.clear();
+	bindlessStackAlloc.Clear();
 }
 }// namespace toolhub::vk

@@ -1,8 +1,15 @@
 #pragma once
 #include <vulkan_impl/vulkan_include.h>
+#include <Utility/StackAllocator.h>
 namespace toolhub::vk {
 static constexpr uint PSO_MAGIC_NUM = 2595790981u;
 class Device;
+class DescriptorSetManager;
+class DescriptorPool;
+class GPUAllocator;
+class TexView;
+class BufferView;
+
 struct PipelineCachePrefixHeader {
 	uint magic;				 // an arbitrary magic header to make sure this is actually our file
 	uint vendorID;			 // equal to VkPhysicalDeviceProperties::vendorID
@@ -13,12 +20,22 @@ struct PipelineCachePrefixHeader {
 	bool operator==(PipelineCachePrefixHeader const& v) const;
 	bool operator!=(PipelineCachePrefixHeader const& v) { return !operator==(v); }
 };
-class GPUAllocator;
+
 class Device : public vstd::IOperatorNewBase {
 	Device();
 	void Init();
+	void InitBindless();
+	mutable vstd::spin_mutex updateBindlessMtx;
+	mutable vstd::spin_mutex allocIdxMtx;
+	mutable vstd::vector<uint> bindlessIdx;
+	mutable vstd::vector<VkWriteDescriptorSet> bindlessWriteRes;
+	mutable vstd::StackAllocator bindlessStackAlloc;
 
 public:
+	uint AllocateBindlessIdx() const;
+	void DeAllocateBindlessIdx(uint index) const;
+	mutable vstd::DefaultMallocVisitor mallocVisitor;
+	vstd::unique_ptr<DescriptorSetManager> manager;
 	vstd::unique_ptr<GPUAllocator> gpuAllocator;
 	VkQueue computeQueue;
 	VkQueue presentQueue;
@@ -45,5 +62,16 @@ public:
 	PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR;
 	PFN_vkCmdWriteAccelerationStructuresPropertiesKHR vkCmdWriteAccelerationStructuresPropertiesKHR;
 	PFN_vkCmdCopyAccelerationStructureKHR vkCmdCopyAccelerationStructureKHR;
+	vstd::unique_ptr<DescriptorPool> pool;
+	VkDescriptorSetLayout samplerSetLayout;
+	VkDescriptorSet samplerSet;
+	VkDescriptorSetLayout bindlessTexSetLayout;
+	VkDescriptorSet bindlessTexSet;
+	VkDescriptorSetLayout bindlessBufferSetLayout;
+	VkDescriptorSet bindlessBufferSet;
+	std::array<VkSampler, 16> samplers;
+	void AddBindlessUpdateCmd(size_t index, BufferView const& buffer) const;
+	void AddBindlessUpdateCmd(size_t index, TexView const& tex) const;
+	void UpdateBindless() const;
 };
 }// namespace toolhub::vk

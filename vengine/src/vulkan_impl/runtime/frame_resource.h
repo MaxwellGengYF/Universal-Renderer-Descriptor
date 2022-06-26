@@ -3,8 +3,10 @@
 #include "command_buffer.h"
 #include <Utility/StackAllocator.h>
 #include <vulkan_impl/gpu_collection/buffer.h>
+#include <vulkan_impl/shader/descriptorset_manager.h>
 namespace toolhub::vk {
 class CommandPool;
+class Event;
 template<RWState state>
 struct BufferStackVisitor : public vstd::StackAllocatorVisitor {
 	Device const* device;
@@ -24,6 +26,7 @@ class FrameResource : public Resource {
 	CommandPool* pool;
 	VkFence syncFence;
 	VkSemaphore semaphore;
+	DescriptorSetManager descManager;
 	bool executing = false;
 	void ReleaseCmdBuffer(VkCommandBuffer buffer);
 	struct CopyBuffer {
@@ -41,6 +44,7 @@ public:
 	FrameResource(FrameResource&&) = delete;
 	vstd::optional<CommandBuffer> AllocateCmdBuffer();
 	void Execute(FrameResource const* lastFrame);
+	void InsertSemaphore(Event const* evt);
 	void ExecuteCopy(CommandBuffer* cb);
 	void Wait();
 	void AddCopyCmd(

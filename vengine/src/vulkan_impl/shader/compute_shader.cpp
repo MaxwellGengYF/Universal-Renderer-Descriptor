@@ -7,7 +7,6 @@
 #include <vulkan_impl/shader/descriptorset_manager.h>
 namespace toolhub::vk {
 ComputeShader::ComputeShader(
-	DescriptorSetManager const* descManager,
 	Device const* device,
 	ShaderCode const& code,
 	vstd::span<VkDescriptorType> properties,
@@ -27,9 +26,9 @@ ComputeShader::ComputeShader(
 	// bindless descset should be in Device class
 	VkDescriptorSetLayout layouts[] = {
 		descriptorSetLayout,
-		descManager->BindlessBufferLayout(),
-		descManager->BindlessTexLayout(),
-		descManager->SamplerSetLayout()};
+		device->bindlessBufferSetLayout,
+		device->bindlessTexSetLayout,
+		device->samplerSetLayout};
 	VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 		vks::initializers::pipelineLayoutCreateInfo(layouts, vstd::array_count(layouts));
 
@@ -49,6 +48,7 @@ ComputeShader::ComputeShader(
 }
 
 ComputeShader::~ComputeShader() {
+	DescriptorSetManager::DestroyPipelineLayout(descriptorSetLayout);
 	vkDestroyPipeline(device->device, pipeline, Device::Allocator());
 	vkDestroyPipelineLayout(device->device, pipelineLayout, Device::Allocator());
 	vkDestroyDescriptorSetLayout(device->device, descriptorSetLayout, Device::Allocator());

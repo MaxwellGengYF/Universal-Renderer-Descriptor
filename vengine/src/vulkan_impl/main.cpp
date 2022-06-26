@@ -116,9 +116,7 @@ static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob
 
 	vstd::small_vector<VkDescriptorType> types;
 	types.emplace_back(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-	DescriptorSetManager descManager(device);
 	ComputeShader cs(
-		&descManager,
 		device,
 		shaderCode,
 		types,
@@ -135,10 +133,10 @@ static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob
 		false,
 		RWState::None,
 		0);
-	descManager.AddBindlessUpdateCmd(
+	device->AddBindlessUpdateCmd(
 		15,
 		&defaultBuffer);
-	descManager.UpdateBindless();
+	device->UpdateBindless();
 
 	CommandPool cmdPool(device);
 	FrameResource frameRes(device, &cmdPool);
@@ -173,7 +171,6 @@ static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob
 		binds.emplace_back(&outputDefault, true);
 		cmdBuffer->Dispatch(
 			&cs,
-			&descManager,
 			binds,
 			uint3(1, 1, 1));
 		stateTracker.MarkBufferRead(
@@ -192,7 +189,6 @@ static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob
 	for (auto&& i : disposeFuncs) {
 		i();
 	}
-	descManager.EndFrame();
 	float readbackValue = 0;
 	readback.buffer->CopyValueTo(readbackValue, readback.offset);
 	std::cout << "result[0] value: " << readbackValue << '\n';
