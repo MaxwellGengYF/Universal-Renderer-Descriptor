@@ -293,7 +293,6 @@ struct HashValue {
 template<typename K, typename V = void, typename Hash = HashValue, typename Compare = compare<K>, VEngine_AllocType allocType = VEngine_AllocType::VEngine>
 class HashMap : public IOperatorNewBase {
 public:
-	static_assert(allocType != VEngine_AllocType::Stack, "Hashmap do not support stack!");
 	using KeyType = K;
 	using ValueType = V;
 	using HashType = Hash;

@@ -57,6 +57,7 @@ public:
 	void InsertSemaphore(Event const* evt);
 	void ExecuteCopy(CommandBuffer* cb);
 	void Wait();
+	void Reset();
 	void AddCopyCmd(
 		Buffer const* src,
 		uint64 srcOffset,

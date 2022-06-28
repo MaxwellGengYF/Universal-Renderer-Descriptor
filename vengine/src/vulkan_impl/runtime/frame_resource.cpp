@@ -147,6 +147,8 @@ void FrameResource::Wait() {
 		true,
 		std::numeric_limits<uint64>::max()));
 	executing = false;
+}
+void FrameResource::Reset() {
 	vkResetFences(device->device, 1, &syncFence);
 	uploadAlloc.Clear();
 	defaultAlloc.Clear();

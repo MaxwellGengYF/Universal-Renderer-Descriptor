@@ -22,20 +22,11 @@ struct VAllocHandle {
 			return vengine_free(ptr);
 		}
 	}
-};
-template<>
-struct VAllocHandle<VEngine_AllocType::Stack> {
-	size_t handle;
-	VAllocHandle() {
-		handle = reinterpret_cast<size_t>(StackBuffer::GetCurrentPtr());
+	void* Realloc(void* ptr, size_t size) const{
+		if constexpr (tt == VEngine_AllocType::Default) {
+			return vengine_default_realloc(ptr, size);
+		} else if constexpr (tt == VEngine_AllocType::VEngine) {
+			return vengine_realloc(ptr, size);
+		}
 	}
-	VAllocHandle(VAllocHandle const&) : VAllocHandle() {}
-	VAllocHandle(VAllocHandle&&) : VAllocHandle() {}
-	~VAllocHandle() {
-		StackBuffer::stack_free(reinterpret_cast<vbyte*>(handle));
-	}
-	void* Malloc(size_t sz) const { return StackBuffer::stack_malloc(sz); }
-	void Free(void*) const {}
-
-private:
 };

@@ -106,7 +106,6 @@ static VkPipelineStageFlagBits GetTextureUsageStage(VkImageLayout layout) {
 }
 }// namespace detail
 void ResStateTracker::Reset() {
-	ClearCollectMap();
 	readMap.Clear();
 	writeMap.Clear();
 	texWriteMap.Clear();

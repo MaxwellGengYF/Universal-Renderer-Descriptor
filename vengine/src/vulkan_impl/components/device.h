@@ -65,13 +65,16 @@ public:
 	vstd::unique_ptr<DescriptorPool> pool;
 	VkDescriptorSetLayout samplerSetLayout;
 	VkDescriptorSet samplerSet;
-	VkDescriptorSetLayout bindlessTexSetLayout;
-	VkDescriptorSet bindlessTexSet;
+	VkDescriptorSetLayout bindlessTex2DSetLayout;
+	VkDescriptorSet bindlessTex2DSet;
+	VkDescriptorSetLayout bindlessTex3DSetLayout;
+	VkDescriptorSet bindlessTex3DSet;
 	VkDescriptorSetLayout bindlessBufferSetLayout;
 	VkDescriptorSet bindlessBufferSet;
 	std::array<VkSampler, 16> samplers;
-	void AddBindlessUpdateCmd(size_t index, BufferView const& buffer) const;
-	void AddBindlessUpdateCmd(size_t index, TexView const& tex) const;
+	void AddBindlessBufferUpdateCmd(size_t index, BufferView const& buffer) const;
+	void AddBindlessTex2DUpdateCmd(size_t index, TexView const& tex) const;
+	void AddBindlessTex3DUpdateCmd(size_t index, TexView const& tex) const;
 	void UpdateBindless() const;
 };
 }// namespace toolhub::vk

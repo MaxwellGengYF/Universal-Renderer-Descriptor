@@ -71,7 +71,8 @@ void CommandBuffer::Dispatch(
 	VkDescriptorSet sets[] = {
 		set,
 		device->bindlessBufferSet,
-		device->bindlessTexSet,
+		device->bindlessTex2DSet,
+		device->bindlessTex3DSet,
 		device->samplerSet};
 	vkCmdBindDescriptorSets(
 		cmdBuffer,

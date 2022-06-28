@@ -10,15 +10,7 @@ class CommandBuffer;
 class ResStateTracker;
 class BindlessArray : public GPUCollection {
 	struct Instance {
-		uint16 tex2D = std::numeric_limits<uint16>::max();
-		uint16 buffer = std::numeric_limits<uint16>::max();
-		uint16 tex3D = std::numeric_limits<uint16>::max();
-		uint16 unused = 0;
-	};
-	struct Ref {
-		Buffer const* buffer = nullptr;
-		Texture const* tex2D = nullptr;
-		Texture const* tex3D = nullptr;
+		uint index = std::numeric_limits<uint>::max();
 	};
 	enum class UpdateFlag : vbyte {
 		None = 0,
@@ -26,6 +18,13 @@ class BindlessArray : public GPUCollection {
 		TEX2D = 2,
 		TEX3D = 4
 	};
+	struct Ref {
+		Buffer const* buffer = nullptr;
+		Texture const* tex2D = nullptr;
+		Texture const* tex3D = nullptr;
+		uint refCount = 0;
+	};
+
 	struct RefOption {
 		uint64 bufferOffset;
 		vbyte tex2DOffset;
@@ -37,8 +36,8 @@ class BindlessArray : public GPUCollection {
 	vstd::vector<std::pair<Instance, Ref>> instances;
 	vstd::HashMap<uint, RefOption> updateList;
 	vstd::vector<VkBufferCopy> copyCmds;
-	void AddRef(GPUCollection const* v);
-	void RemoveRef(GPUCollection const* v);
+	void AddRef(GPUCollection const* v, uint& refCount);
+	void RemoveRef(GPUCollection const* v, uint& refCount);
 
 public:
 	//host set

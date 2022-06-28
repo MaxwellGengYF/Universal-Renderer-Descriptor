@@ -27,7 +27,8 @@ ComputeShader::ComputeShader(
 	VkDescriptorSetLayout layouts[] = {
 		descriptorSetLayout,
 		device->bindlessBufferSetLayout,
-		device->bindlessTexSetLayout,
+		device->bindlessTex2DSetLayout,
+		device->bindlessTex3DSetLayout,
 		device->samplerSetLayout};
 	VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 		vks::initializers::pipelineLayoutCreateInfo(layouts, vstd::array_count(layouts));

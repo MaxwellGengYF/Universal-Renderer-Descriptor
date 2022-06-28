@@ -238,8 +238,10 @@ void Device::InitBindless() {
 		| VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT;
 	setLayoutBindingFlags.pBindingFlags = &descriptorBindingFlags;
 	descriptorLayout.pNext = &setLayoutBindingFlags;
-	ThrowIfFailed(vkCreateDescriptorSetLayout(device, &descriptorLayout, Device::Allocator(), &bindlessTexSetLayout));
-	bindlessTexSet = pool->Allocate(bindlessTexSetLayout, &bindlessSize);
+	ThrowIfFailed(vkCreateDescriptorSetLayout(device, &descriptorLayout, Device::Allocator(), &bindlessTex2DSetLayout));
+	bindlessTex2DSet = pool->Allocate(bindlessTex2DSetLayout, &bindlessSize);
+	ThrowIfFailed(vkCreateDescriptorSetLayout(device, &descriptorLayout, Device::Allocator(), &bindlessTex3DSetLayout));
+	bindlessTex3DSet = pool->Allocate(bindlessTex3DSetLayout, &bindlessSize);
 	setLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	ThrowIfFailed(vkCreateDescriptorSetLayout(device, &descriptorLayout, Device::Allocator(), &bindlessBufferSetLayout));
 	bindlessBufferSet = pool->Allocate(bindlessBufferSetLayout, &bindlessSize);
@@ -255,11 +257,16 @@ void Device::DeAllocateBindlessIdx(uint16 index) const {
 }
 Device::~Device() {
 	pool->Destroy(samplerSet);
-	pool->Destroy(bindlessTexSet);
+	pool->Destroy(bindlessTex2DSet);
+	pool->Destroy(bindlessTex3DSet);
 	pool->Destroy(bindlessBufferSet);
 	vkDestroyDescriptorSetLayout(
 		device,
-		bindlessTexSetLayout,
+		bindlessTex2DSetLayout,
+		Device::Allocator());
+	vkDestroyDescriptorSetLayout(
+		device,
+		bindlessTex3DSetLayout,
 		Device::Allocator());
 	vkDestroyDescriptorSetLayout(
 		device,
@@ -464,7 +471,7 @@ void PipelineCachePrefixHeader::Init(Device const* device) {
 bool PipelineCachePrefixHeader::operator==(PipelineCachePrefixHeader const& v) const {
 	return memcmp(this, &v, sizeof(PipelineCachePrefixHeader)) == 0;
 }
-void Device::AddBindlessUpdateCmd(size_t index, BufferView const& buffer) const {
+void Device::AddBindlessBufferUpdateCmd(size_t index, BufferView const& buffer) const {
 	std::lock_guard lck(updateBindlessMtx);
 	auto&& writeDesc = bindlessWriteRes.emplace_back();
 	memset(&writeDesc, 0, sizeof(VkWriteDescriptorSet));
@@ -481,12 +488,29 @@ void Device::AddBindlessUpdateCmd(size_t index, BufferView const& buffer) const 
 		buffer.size);
 	writeDesc.pBufferInfo = ptr;
 }
-void Device::AddBindlessUpdateCmd(size_t index, TexView const& tex) const {
+void Device::AddBindlessTex2DUpdateCmd(size_t index, TexView const& tex) const {
 	std::lock_guard lck(updateBindlessMtx);
 	auto&& writeDesc = bindlessWriteRes.emplace_back();
 	memset(&writeDesc, 0, sizeof(VkWriteDescriptorSet));
 	writeDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeDesc.dstSet = bindlessTexSet;
+	writeDesc.dstSet = bindlessTex2DSet;
+	writeDesc.dstBinding = 0;
+	writeDesc.dstArrayElement = index;
+	writeDesc.descriptorCount = 1;
+	writeDesc.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	auto bf = bindlessStackAlloc.Allocate(sizeof(VkDescriptorImageInfo));
+	auto ptr = reinterpret_cast<VkDescriptorImageInfo*>(bf.handle + bf.offset);
+	*ptr = tex.tex->GetDescriptor(
+		tex.mipOffset,
+		tex.mipCount);
+	writeDesc.pImageInfo = ptr;
+}
+void Device::AddBindlessTex3DUpdateCmd(size_t index, TexView const& tex) const {
+	std::lock_guard lck(updateBindlessMtx);
+	auto&& writeDesc = bindlessWriteRes.emplace_back();
+	memset(&writeDesc, 0, sizeof(VkWriteDescriptorSet));
+	writeDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDesc.dstSet = bindlessTex3DSet;
 	writeDesc.dstBinding = 0;
 	writeDesc.dstArrayElement = index;
 	writeDesc.descriptorCount = 1;

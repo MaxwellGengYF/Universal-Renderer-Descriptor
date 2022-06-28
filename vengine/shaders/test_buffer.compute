@@ -1,0 +1,16 @@
+struct Data{
+    float4x4 mat;
+    float4x4 mat1;
+    float4 vec;
+};
+StructuredBuffer<Data> input : register(t0);
+RWStructuredBuffer<Data> output : register(u1);
+[numthreads(1,1,1)]
+void main(uint id : SV_DISPATCHTHREADID){
+    Data i = input[id];
+    Data o;
+    o.mat = mul(i.mat, i.mat1);
+    o.mat1 = mul(transpose(i.mat), i.mat1);
+    o.vec = mul(i.mat, i.vec);
+    output[id] = o;
+}

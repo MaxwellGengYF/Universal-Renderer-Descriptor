@@ -3,6 +3,5 @@
 #include <stdint.h>
 enum class VEngine_AllocType : vbyte {
 	Default,
-	VEngine,
-	Stack
+	VEngine
 };
