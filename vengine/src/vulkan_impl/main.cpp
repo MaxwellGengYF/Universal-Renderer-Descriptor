@@ -15,99 +15,9 @@
 #include <vulkan_impl/rtx/query.h>
 #include <vulkan_impl/gpu_collection/bindless_array.h>
 using namespace toolhub::vk;
-static auto validationLayers = {"VK_LAYER_KHRONOS_validation"};
-static VkInstance InitVkInstance() {
-	VkInstance instance;
-#ifdef DEBUG
-	auto Check = [&] {
-		uint32_t layerCount;
-		vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
 
-		vstd::vector<VkLayerProperties> availableLayers(layerCount);
-		vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-		for (const char* layerName : validationLayers) {
-			bool layerFound = false;
-
-			for (const auto& layerProperties : availableLayers) {
-				if (strcmp(layerName, layerProperties.layerName) == 0) {
-					layerFound = true;
-					break;
-				}
-			}
-
-			if (!layerFound) {
-				return false;
-			}
-		}
-
-		return true;
-	};
-	if (!Check()) {
-		VEngine_Log("validation layers requested, but not available!");
-		VENGINE_EXIT;
-	}
-#endif
-	VkApplicationInfo appInfo{};
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pApplicationName = nullptr;
-	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.pEngineName = nullptr;
-	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.apiVersion = VulkanApiVersion;
-
-	VkInstanceCreateInfo createInfo{};
-	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	createInfo.pApplicationInfo = &appInfo;
-	vstd::vector<char const*> requiredExts;
-	{
-/*		uint32_t glfwExtensionCount = 0;
-		const char** glfwExtensions;
-		glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-		requiredExts = vstd::span<const char*>{glfwExtensions, glfwExtensionCount};*/
-#ifdef DEBUG
-		requiredExts.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif
-	}
-	createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExts.size());
-	createInfo.ppEnabledExtensionNames = requiredExts.data();
-
-	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
-#ifdef DEBUG
-	createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-	createInfo.ppEnabledLayerNames = validationLayers.begin();
-	auto populateDebugMessengerCreateInfo = [](VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
-		createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-		createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-		createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-		createInfo.pfnUserCallback =
-			[](VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-			   VkDebugUtilsMessageTypeFlagsEXT messageType,
-			   const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-			   void* pUserData) {
-				if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-					// Message is important enough to show
-					std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
-				}
-
-				return VK_FALSE;
-			};
-	};
-	populateDebugMessengerCreateInfo(debugCreateInfo);
-	createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
-#else
-	createInfo.enabledLayerCount = 0;
-	createInfo.pNext = nullptr;
-#endif
-	// Create Instance
-	ThrowIfFailed(vkCreateInstance(&createInfo, Device::Allocator(), &instance));
-	return instance;
-}
-static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob const& block) {
-	vbyte* ptr = block.GetBufferPtr();
-	size_t size = block.GetBufferSize();
-	ShaderCode shaderCode(device, {ptr, size}, {});
+static void ComputeShaderTest(Device const* device, vstd::span<vbyte const> block) {
+	ShaderCode shaderCode(device, block, {});
 
 	vstd::small_vector<VkDescriptorType> types;
 	types.emplace_back(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
@@ -169,14 +79,15 @@ static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob
 		vstd::vector<BindResource> binds;
 		binds.emplace_back(&outputDefault, true);
 		binds.emplace_back(arr.InstanceBuffer(), false);
-		cmdBuffer->PreprocessDispatch(
+		auto set = cmdBuffer->PreprocessDispatch(
+			&cs,
 			stateTracker,
 			binds);
 		stateTracker.MarkBindlessRead(arr);
 		Cut();
 		cmdBuffer->Dispatch(
+			set,
 			&cs,
-			binds,
 			uint3(1, 1, 1));
 		stateTracker.MarkBufferRead(
 			&outputDefault,
@@ -197,11 +108,11 @@ static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob
 	float readbackValue = 0;
 	readback.buffer->CopyValueTo(readbackValue, readback.offset);
 	std::cout << "result[0] value: " << readbackValue << '\n';
-
 }
-int main() {
-	auto instance = InitVkInstance();
-	auto device = Device::CreateDevice(instance, nullptr, validationLayers, 0);
+void CompileAndTest(
+	Device const* device,
+	vstd::string const& shaderName,
+	vstd::move_only_func<void(Device const* device, vstd::span<vbyte const> block)> const& func) {
 	vstd::string shaderCode;
 	{
 		BinaryReader reader("test.compute");
@@ -213,37 +124,20 @@ int main() {
 		true);
 	auto errMsg = compResult.try_get<vstd::string>();
 	if (errMsg) {
-		std::cout << *errMsg << '\n';
-		return 1;
+		std::cout << "Compile error: " << *errMsg << '\n';
+		return;
 	}
-	/*
-	auto compileResult = comp.CompileGlslToSpv(
-		shaderCode.data(),
-		shaderCode.size(),
-		shaderc_compute_shader,
-		"test.compute",
-		"main",
-		options);
+	auto&& byteCode = compResult.get<0>();
+	vstd::span<vbyte const> resultArr(
+		byteCode->GetBufferPtr(),
+		byteCode->GetBufferSize());
+	func(device, resultArr);
+}
+int main() {
+	auto instance = Device::InitVkInstance();
+	auto device = Device::CreateDevice(instance, nullptr, 0);
+	CompileAndTest(device, "test.compute", ComputeShaderTest);
 
-	auto writeTexCompileResult = comp.CompileGlslToSpv(
-		writeTexCode.data(),
-		writeTexCode.size(),
-		shaderc_compute_shader,
-		"write_tex.compute",
-		"main",
-		options);
-
-	auto errMsg = compileResult.GetErrorMessage();
-	if (errMsg.size() > 0) {
-		std::cout << errMsg << '\n';
-		return 1;
-	}
-	errMsg = writeTexCompileResult.GetErrorMessage();
-	if (errMsg.size() > 0) {
-		std::cout << errMsg << '\n';
-		return 1;
-	}*/
-	ComputeShaderTest(device, *compResult.get<0>());
 	delete device;
 	vkDestroyInstance(instance, Device::Allocator());
 	std::cout << "finished\n";

@@ -8,6 +8,97 @@
 #include <vulkan_impl/gpu_collection/texture.h>
 namespace toolhub::vk {
 namespace detail {
+static auto validationLayers = {"VK_LAYER_KHRONOS_validation"};
+}
+VkInstance Device::InitVkInstance() {
+	VkInstance instance;
+#ifdef DEBUG
+	auto Check = [&] {
+		uint32_t layerCount;
+		vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+		vstd::vector<VkLayerProperties> availableLayers(layerCount);
+		vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+		for (const char* layerName : detail::validationLayers) {
+			bool layerFound = false;
+
+			for (const auto& layerProperties : availableLayers) {
+				if (strcmp(layerName, layerProperties.layerName) == 0) {
+					layerFound = true;
+					break;
+				}
+			}
+
+			if (!layerFound) {
+				return false;
+			}
+		}
+
+		return true;
+	};
+	if (!Check()) {
+		VEngine_Log("validation layers requested, but not available!");
+		VENGINE_EXIT;
+	}
+#endif
+	VkApplicationInfo appInfo{};
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	appInfo.pApplicationName = nullptr;
+	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.pEngineName = nullptr;
+	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.apiVersion = VulkanApiVersion;
+
+	VkInstanceCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	createInfo.pApplicationInfo = &appInfo;
+	vstd::vector<char const*> requiredExts;
+	{
+/*		uint32_t glfwExtensionCount = 0;
+		const char** glfwExtensions;
+		glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+		requiredExts = vstd::span<const char*>{glfwExtensions, glfwExtensionCount};*/
+#ifdef DEBUG
+		requiredExts.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#endif
+	}
+	createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExts.size());
+	createInfo.ppEnabledExtensionNames = requiredExts.data();
+
+	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
+#ifdef DEBUG
+	createInfo.enabledLayerCount = static_cast<uint32_t>(detail::validationLayers.size());
+	createInfo.ppEnabledLayerNames = detail::validationLayers.begin();
+	auto populateDebugMessengerCreateInfo = [](VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
+		createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+		createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+		createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+		createInfo.pfnUserCallback =
+			[](VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+			   VkDebugUtilsMessageTypeFlagsEXT messageType,
+			   const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+			   void* pUserData) {
+				if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+					// Message is important enough to show
+					std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+				}
+
+				return VK_FALSE;
+			};
+	};
+	populateDebugMessengerCreateInfo(debugCreateInfo);
+	createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
+#else
+	createInfo.enabledLayerCount = 0;
+	createInfo.pNext = nullptr;
+#endif
+	// Create Instance
+	ThrowIfFailed(vkCreateInstance(&createInfo, Device::Allocator(), &instance));
+	return instance;
+}
+namespace detail {
 class VulkanAllocatorImpl {
 public:
 	VkAllocationCallbacks allocator;
@@ -191,7 +282,6 @@ Device::~Device() {
 Device* Device::CreateDevice(
 	VkInstance instance,
 	VkSurfaceKHR surface,
-	vstd::span<char const* const> validationLayers,
 	uint physicalDeviceIndex,
 	void* placedMemory) {
 	std::initializer_list<char const*> requiredFeatures = {
@@ -339,8 +429,8 @@ Device* Device::CreateDevice(
 	createInfo.pEnabledFeatures = &deviceFeatures;
 	createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredFeatures.size());
 	createInfo.ppEnabledExtensionNames = requiredFeatures.begin();
-	createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-	createInfo.ppEnabledLayerNames = validationLayers.data();
+	createInfo.enabledLayerCount = static_cast<uint32_t>(detail::validationLayers.size());
+	createInfo.ppEnabledLayerNames = detail::validationLayers.begin();
 	VkDevice device;
 	if (vkCreateDevice(physicalDevice, &createInfo, Device::Allocator(), &device) != VK_SUCCESS) {
 		return nullptr;
@@ -374,7 +464,7 @@ void PipelineCachePrefixHeader::Init(Device const* device) {
 bool PipelineCachePrefixHeader::operator==(PipelineCachePrefixHeader const& v) const {
 	return memcmp(this, &v, sizeof(PipelineCachePrefixHeader)) == 0;
 }
-void Device::AddBindlessUpdateCmd(size_t index, BufferView const& buffer) const{
+void Device::AddBindlessUpdateCmd(size_t index, BufferView const& buffer) const {
 	std::lock_guard lck(updateBindlessMtx);
 	auto&& writeDesc = bindlessWriteRes.emplace_back();
 	memset(&writeDesc, 0, sizeof(VkWriteDescriptorSet));
@@ -391,7 +481,7 @@ void Device::AddBindlessUpdateCmd(size_t index, BufferView const& buffer) const{
 		buffer.size);
 	writeDesc.pBufferInfo = ptr;
 }
-void Device::AddBindlessUpdateCmd(size_t index, TexView const& tex) const{
+void Device::AddBindlessUpdateCmd(size_t index, TexView const& tex) const {
 	std::lock_guard lck(updateBindlessMtx);
 	auto&& writeDesc = bindlessWriteRes.emplace_back();
 	memset(&writeDesc, 0, sizeof(VkWriteDescriptorSet));
@@ -409,8 +499,9 @@ void Device::AddBindlessUpdateCmd(size_t index, TexView const& tex) const{
 	writeDesc.pImageInfo = ptr;
 }
 
-void Device::UpdateBindless() const{
+void Device::UpdateBindless() const {
 	std::lock_guard lck(updateBindlessMtx);
+	if (bindlessWriteRes.empty()) return;
 	vkUpdateDescriptorSets(device, bindlessWriteRes.size(), bindlessWriteRes.data(), 0, nullptr);
 	bindlessWriteRes.clear();
 	bindlessStackAlloc.Clear();

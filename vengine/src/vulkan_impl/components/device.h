@@ -32,6 +32,7 @@ class Device : public vstd::IOperatorNewBase {
 	mutable vstd::StackAllocator bindlessStackAlloc;
 
 public:
+	static VkInstance InitVkInstance();
 	uint16 AllocateBindlessIdx() const;
 	void DeAllocateBindlessIdx(uint16 index) const;
 	mutable vstd::DefaultMallocVisitor mallocVisitor;
@@ -50,7 +51,6 @@ public:
 	static Device* CreateDevice(
 		VkInstance instance,
 		VkSurfaceKHR surface,
-		vstd::span<char const* const> validationLayers,
 		uint physicalDeviceIndex,
 		void* placedMemory = nullptr);
 	~Device();

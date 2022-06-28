@@ -1,6 +1,7 @@
 #pragma once
 #include <vulkan_impl/components/resource.h>
 #include <vulkan_impl/types/bind_desriptor.h>
+#include <Utility/StackAllocator.h>
 namespace toolhub::vk {
 class FrameResource;
 class ComputeShader;
@@ -39,12 +40,13 @@ public:
 		Buffer const* dstBuffer,
 		size_t dstOffset,
 		size_t size);
-	void PreprocessDispatch(
+	VkDescriptorSet PreprocessDispatch(
+		ComputeShader const* cs,
 		ResStateTracker& stateTracker,
 		vstd::span<BindResource const> binds);
 	void Dispatch(
+		VkDescriptorSet set,
 		ComputeShader const* cs,
-		vstd::span<BindResource const> binds,
 		uint3 dispatchCount);
 };
 }// namespace toolhub::vk

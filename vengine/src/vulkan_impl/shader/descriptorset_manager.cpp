@@ -3,6 +3,7 @@
 #include <vulkan_impl/gpu_collection/buffer.h>
 #include <vulkan_impl/gpu_collection/texture.h>
 #include <vulkan_impl/rtx/accel.h>
+#include <vulkan_impl/runtime/res_state_tracker.h>
 namespace toolhub::vk {
 
 namespace detail {
@@ -39,6 +40,7 @@ void DescriptorSetManager::DestroyPipelineLayout(VkDescriptorSetLayout layout) {
 	}
 }
 VkDescriptorSet DescriptorSetManager::Allocate(
+	ResStateTracker& stateTracker,
 	VkDescriptorSetLayout layout,
 	vstd::span<VkDescriptorType const> descTypes,
 	vstd::span<BindResource const> descriptors) {
@@ -71,6 +73,12 @@ VkDescriptorSet DescriptorSetManager::Allocate(
 		auto&& writeDst = computeWriteRes[i];
 		desc.res.multi_visit(
 			[&](Texture const* tex) {
+				if (desc.writable) {
+					stateTracker.MarkTextureWrite(
+						tex, desc.offset, TextureWriteState::Compute);
+				} else {
+					stateTracker.MarkTextureRead(TexView(tex, desc.offset, desc.size));
+				}
 				auto&& descType = descTypes[i];
 #ifdef DEBUG
 				if (descType != VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
@@ -89,6 +97,17 @@ VkDescriptorSet DescriptorSetManager::Allocate(
 					result, descType, i, ptr);
 			},
 			[&](Buffer const* buffer) {
+				auto bfView = BufferView(buffer, desc.offset, desc.size);
+				if (desc.writable) {
+					stateTracker.MarkBufferWrite(
+						bfView,
+						BufferWriteState::Compute);
+				} else {
+					stateTracker.MarkBufferRead(
+						bfView,
+						BufferReadState::ComputeOrCopy);
+				}
+
 				auto&& descType = descTypes[i];
 #ifdef DEBUG
 				if (descType != VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
@@ -106,6 +125,9 @@ VkDescriptorSet DescriptorSetManager::Allocate(
 					result, descType, i, ptr);
 			},
 			[&](Accel const* accel) {
+				stateTracker.MarkBufferRead(
+					accel->AccelBuffer(),
+					BufferReadState::UseAccel);
 #ifdef DEBUG
 				auto&& descType = descTypes[i];
 				if (descType != VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR

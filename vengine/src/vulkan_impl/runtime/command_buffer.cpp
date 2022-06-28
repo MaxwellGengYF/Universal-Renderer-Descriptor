@@ -49,50 +49,25 @@ void CommandBuffer::CopyBuffer(
 
 	vkCmdCopyBuffer(cmdBuffer, srcBuffer->GetResource(), dstBuffer->GetResource(), 1, &copyRegion);
 }
-void CommandBuffer::PreprocessDispatch(
+VkDescriptorSet CommandBuffer::PreprocessDispatch(
+	ComputeShader const* cs,
 	ResStateTracker& stateTracker,
 	vstd::span<BindResource const> binds) {
-	for (auto&& desc : binds) {
-		desc.res.multi_visit(
-			[&](Texture const* t) {
-				if (desc.writable) {
-					stateTracker.MarkTextureWrite(
-						t, desc.offset, TextureWriteState::Compute);
-				} else {
-					stateTracker.MarkTextureRead(TexView(t, desc.offset, desc.size));
-				}
-			},
-			[&](Buffer const* b) {
-				auto bfView = BufferView(b, desc.offset, desc.size);
-				if (desc.writable) {
-					stateTracker.MarkBufferWrite(
-						bfView,
-						BufferWriteState::Compute);
-				} else {
-					stateTracker.MarkBufferRead(
-						bfView,
-						BufferReadState::ComputeOrCopy);
-				}
-			},
-			[&](Accel const* a) {
-				stateTracker.MarkBufferRead(
-					a->AccelBuffer(),
-					BufferReadState::UseAccel);
-			});
-	}
+	return descManager->Allocate(
+		stateTracker,
+		cs->descriptorSetLayout,
+		cs->propertiesTypes,
+		binds);
 }
 void CommandBuffer::Dispatch(
+	VkDescriptorSet set,
 	ComputeShader const* cs,
-	vstd::span<BindResource const> binds,
 	uint3 dispatchCount) {
 	vkCmdBindPipeline(
 		cmdBuffer,
 		VK_PIPELINE_BIND_POINT_COMPUTE,
 		cs->pipeline);
-	auto set = descManager->Allocate(
-		cs->descriptorSetLayout,
-		cs->propertiesTypes,
-		binds);
+
 	VkDescriptorSet sets[] = {
 		set,
 		device->bindlessBufferSet,

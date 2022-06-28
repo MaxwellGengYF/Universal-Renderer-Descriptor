@@ -3,7 +3,7 @@
 -- BuildBinary = 'TextureTools'
 -- BuildBinary = 'VEngine_IR'
 BuildBinary = 'VEngine_Vulkan'
-
+IncludePaths = {"./"}
 VulkanLib = "C:/VulkanSDK/1.3.216.0/"
 
 function ProjFilter(name)
@@ -20,7 +20,6 @@ function Macro(tab)
     end
     return tab
 end
-IncludePaths = {"./"}
 
 rule("copy_to_unity")
 after_build(function(target)

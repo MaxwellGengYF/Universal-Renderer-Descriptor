@@ -9,6 +9,7 @@
 namespace toolhub::vk {
 class DescriptorSetManager;
 class CommandBuffer;
+class ResStateTracker;
 class DescriptorSetManager : public Resource {
 	friend class Device;
 
@@ -35,6 +36,7 @@ public:
 	DescriptorSetManager(Device const* device);
 	~DescriptorSetManager();
 	VkDescriptorSet Allocate(
+		ResStateTracker& stateTracker,
 		VkDescriptorSetLayout layout,
 		vstd::span<VkDescriptorType const> descTypes,
 		vstd::span<BindResource const> descriptors);

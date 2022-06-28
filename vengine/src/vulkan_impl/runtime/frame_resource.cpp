@@ -2,6 +2,7 @@
 #include <vulkan_impl/vulkan_initializer.hpp>
 #include "command_pool.h"
 #include <vulkan_impl/gpu_collection/texture.h>
+#include "res_state_tracker.h"
 namespace toolhub::vk {
 template<RWState state>
 uint64 BufferStackVisitor<state>::Allocate(uint64 size) {
