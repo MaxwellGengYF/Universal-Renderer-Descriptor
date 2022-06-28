@@ -13,6 +13,7 @@
 #include <vulkan_impl/rtx/accel.h>
 #include <dxc/dxc_util.h>
 #include <vulkan_impl/rtx/query.h>
+#include <vulkan_impl/gpu_collection/bindless_array.h>
 using namespace toolhub::vk;
 static auto validationLayers = {"VK_LAYER_KHRONOS_validation"};
 static VkInstance InitVkInstance() {
@@ -103,18 +104,13 @@ static VkInstance InitVkInstance() {
 	ThrowIfFailed(vkCreateInstance(&createInfo, Device::Allocator(), &instance));
 	return instance;
 }
-struct alignas(16) Vertex {
-	float3 pos;
-};
-struct Triangle {
-	uint v[3];
-};
 static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob const& block) {
 	vbyte* ptr = block.GetBufferPtr();
 	size_t size = block.GetBufferSize();
 	ShaderCode shaderCode(device, {ptr, size}, {});
 
 	vstd::small_vector<VkDescriptorType> types;
+	types.emplace_back(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
 	types.emplace_back(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
 	ComputeShader cs(
 		device,
@@ -133,10 +129,6 @@ static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob
 		false,
 		RWState::None,
 		0);
-	device->AddBindlessUpdateCmd(
-		15,
-		&defaultBuffer);
-	device->UpdateBindless();
 
 	CommandPool cmdPool(device);
 	FrameResource frameRes(device, &cmdPool);
@@ -145,7 +137,14 @@ static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob
 	vstd::vector<vstd::move_only_func<void()>> disposeFuncs;
 	vstd::move_only_func<void(vstd::move_only_func<void()> &&)> addDisposeEvent = [&](auto&& v) { disposeFuncs.push_back(std::move(v)); };
 	BufferView readback;
+	BindlessArray arr(device, 256);
+	arr.Bind(244, &defaultBuffer, 0);
 	if (auto cmdBuffer = frameRes.AllocateCmdBuffer()) {
+		auto Cut = [&] {
+			stateTracker.Execute(cmdBuffer);
+			device->UpdateBindless();
+			frameRes.ExecuteCopy(cmdBuffer);
+		};
 		auto upload = frameRes.AllocateUpload(4);
 		readback = frameRes.AllocateReadback(4);
 		float inputFloat = 365;
@@ -153,22 +152,28 @@ static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob
 		stateTracker.MarkBufferWrite(
 			&defaultBuffer,
 			BufferWriteState::Copy);
-		stateTracker.Execute(cmdBuffer);
+		arr.Preprocess(
+			&frameRes,
+			stateTracker,
+			cmdBuffer);
+		Cut();
 		cmdBuffer->CopyBuffer(
 			upload.buffer,
 			upload.offset,
 			&defaultBuffer,
 			0,
 			4);
-		stateTracker.MarkBufferRead(
-			&defaultBuffer,
-			BufferReadState::ComputeOrCopy);
 		stateTracker.MarkBufferWrite(
 			&outputDefault,
 			BufferWriteState::Compute);
-		stateTracker.Execute(cmdBuffer);
 		vstd::vector<BindResource> binds;
 		binds.emplace_back(&outputDefault, true);
+		binds.emplace_back(arr.InstanceBuffer(), false);
+		cmdBuffer->PreprocessDispatch(
+			stateTracker,
+			binds);
+		stateTracker.MarkBindlessRead(arr);
+		Cut();
 		cmdBuffer->Dispatch(
 			&cs,
 			binds,
@@ -176,7 +181,7 @@ static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob
 		stateTracker.MarkBufferRead(
 			&outputDefault,
 			BufferReadState::ComputeOrCopy);
-		stateTracker.Execute(cmdBuffer);
+		Cut();
 		cmdBuffer->CopyBuffer(
 			&outputDefault,
 			0,
@@ -192,6 +197,7 @@ static void ComputeShaderTest(Device const* device, toolhub::directx::DXByteBlob
 	float readbackValue = 0;
 	readback.buffer->CopyValueTo(readbackValue, readback.offset);
 	std::cout << "result[0] value: " << readbackValue << '\n';
+
 }
 int main() {
 	auto instance = InitVkInstance();

@@ -4,6 +4,7 @@
 #include <Utility/StackAllocator.h>
 #include <vulkan_impl/gpu_collection/buffer.h>
 #include <vulkan_impl/shader/descriptorset_manager.h>
+#include <Common/functional.h>
 namespace toolhub::vk {
 class CommandPool;
 class Event;
@@ -34,6 +35,7 @@ class FrameResource : public Resource {
 		Src const* src;
 		Dst const* dst;
 	};
+	bool signaled = false;
 	vstd::vector<vstd::vector<VkBufferCopy>> bufferCopyVecPool;
 	vstd::vector<vstd::vector<VkImageCopy>> imgCopyVecPool;
 	vstd::vector<vstd::vector<VkBufferImageCopy>> bufImgCopyVecPool;
@@ -51,7 +53,7 @@ public:
 	FrameResource(FrameResource const&) = delete;
 	FrameResource(FrameResource&&) = delete;
 	vstd::optional<CommandBuffer> AllocateCmdBuffer();
-	void Execute(FrameResource const* lastFrame);
+	void Execute(FrameResource* lastFrame);
 	void InsertSemaphore(Event const* evt);
 	void ExecuteCopy(CommandBuffer* cb);
 	void Wait();
@@ -62,21 +64,41 @@ public:
 		uint64 dstOffset,
 		uint64 size);
 	void AddCopyCmd(
+		Buffer const* src,
+		Buffer const* dst,
+		vstd::move_only_func<vstd::optional<VkBufferCopy>()> const& iterateFunc,
+		size_t reserveSize = 0);
+	void AddCopyCmd(
 		Texture const* src,
 		uint srcMip,
 		Texture const* dst,
 		uint dstMip);
+	void AddCopyCmd(
+		Texture const* src,
+		Texture const* dst,
+		vstd::move_only_func<vstd::optional<VkImageCopy>()> const& iterateFunc,
+		size_t reserveSize = 0);
 	void AddCopyCmd(
 		Buffer const* src,
 		uint64 srcOffset,
 		Texture const* dst,
 		uint dstMipOffset);
 	void AddCopyCmd(
+		Buffer const* src,
+		Texture const* dst,
+		vstd::move_only_func<vstd::optional<VkBufferImageCopy>()> const& iterateFunc,
+		size_t reserveSize = 0);
+	void AddCopyCmd(
 		Texture const* src,
 		uint srcMipOffset,
 		uint srcMipCount,
 		Buffer const* dst,
 		uint64 dstOffset);
+	void AddCopyCmd(
+		Texture const* src,
+		Buffer const* dst,
+		vstd::move_only_func<vstd::optional<VkBufferImageCopy>()> const& iterateFunc,
+		size_t reserveSize = 0);
 
 	BufferView AllocateUpload(
 		uint64 size,

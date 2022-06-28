@@ -58,22 +58,22 @@ vstd::optional<CommandBuffer> FrameResource::AllocateCmdBuffer() {
 	needExecuteBuffers.emplace_back(vkCmdBuffer);
 	return CommandBuffer(&descManager, device, vkCmdBuffer, this);
 }
-void FrameResource::Execute(FrameResource const* lastFrame) {
+void FrameResource::Execute(FrameResource* lastFrame) {
 	if (executing && !needExecuteBuffers.empty()) return;
 	VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
 	computeSubmitInfo.commandBufferCount = needExecuteBuffers.size();
 	computeSubmitInfo.pCommandBuffers = needExecuteBuffers.data();
-	if (lastFrame) {
+	if (lastFrame && lastFrame->signaled) {
+		lastFrame->signaled = false;
 		computeSubmitInfo.waitSemaphoreCount = 1;
 		VkSemaphore phore = lastFrame->semaphore;
 		computeSubmitInfo.pWaitSemaphores = &phore;
 	}
-	/*
-	computeSubmitInfo.waitSemaphoreCount = 1;
-	computeSubmitInfo.pWaitSemaphores = &graphics.semaphore;
-	computeSubmitInfo.pWaitDstStageMask = &waitStageMask;
-	computeSubmitInfo.signalSemaphoreCount = 1;
-	computeSubmitInfo.pSignalSemaphores = &compute.semaphore;*/
+	if (!signaled) {
+		signaled = true;
+		computeSubmitInfo.signalSemaphoreCount = 1;
+		computeSubmitInfo.pSignalSemaphores = &semaphore;
+	}
 	ThrowIfFailed(vkQueueSubmit(device->computeQueue, 1, &computeSubmitInfo, syncFence));
 	executing = true;
 	needExecuteBuffers.clear();
@@ -202,6 +202,62 @@ void FrameResource::AddCopyCmd(
 		srcOffset,
 		dstOffset,
 		size});
+}
+void FrameResource::AddCopyCmd(
+	Buffer const* src,
+	Buffer const* dst,
+	vstd::move_only_func<vstd::optional<VkBufferCopy>()> const& iterateFunc,
+	size_t reserveSize) {
+	auto ite = bufferCopyCmds.Emplace(
+		CopyKey<Buffer, Buffer>{src, dst},
+		detail::GetVecPoolLazyEval(bufferCopyVecPool));
+	auto&& vec = ite.Value();
+	vec.reserve(vec.size() + reserveSize);
+	while (auto v = iterateFunc()) {
+		vec.emplace_back(*v);
+	}
+}
+void FrameResource::AddCopyCmd(
+	Texture const* src,
+	Texture const* dst,
+	vstd::move_only_func<vstd::optional<VkImageCopy>()> const& iterateFunc,
+	size_t reserveSize) {
+	auto ite = imgCopyCmds.Emplace(
+		CopyKey<Texture, Texture>{src, dst},
+		detail::GetVecPoolLazyEval(imgCopyVecPool));
+	auto&& vec = ite.Value();
+	vec.reserve(vec.size() + reserveSize);
+	while (auto v = iterateFunc()) {
+		vec.emplace_back(*v);
+	}
+}
+void FrameResource::AddCopyCmd(
+	Buffer const* src,
+	Texture const* dst,
+	vstd::move_only_func<vstd::optional<VkBufferImageCopy>()> const& iterateFunc,
+	size_t reserveSize) {
+	auto ite = bufImgCopyCmds.Emplace(
+		CopyKey<Buffer, Texture>{src, dst},
+		detail::GetVecPoolLazyEval(bufImgCopyVecPool));
+	auto&& vec = ite.Value();
+	vec.reserve(vec.size() + reserveSize);
+	while (auto v = iterateFunc()) {
+		vec.emplace_back(*v);
+	}
+}
+void FrameResource::AddCopyCmd(
+	Texture const* src,
+	Buffer const* dst,
+	vstd::move_only_func<vstd::optional<VkBufferImageCopy>()> const& iterateFunc,
+	size_t reserveSize) {
+	auto ite = imgBufCopyCmds.Emplace(
+		CopyKey<Texture, Buffer>{src, dst},
+		detail::GetVecPoolLazyEval(bufImgCopyVecPool));
+	auto&& vec = ite.Value();
+	vec.reserve(vec.size() + reserveSize);
+	while (auto v = iterateFunc()) {
+		vec.emplace_back(*v);
+	}
 }
 void FrameResource::AddCopyCmd(
 	Texture const* src,

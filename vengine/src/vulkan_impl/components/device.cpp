@@ -154,11 +154,11 @@ void Device::InitBindless() {
 	bindlessBufferSet = pool->Allocate(bindlessBufferSetLayout, &bindlessSize);
 	bindlessIdx.push_back_func(DescriptorPool::MAX_BINDLESS_SIZE, [](size_t i) { return i; });
 }
-uint Device::AllocateBindlessIdx() const {
+uint16 Device::AllocateBindlessIdx() const {
 	std::lock_guard lck(allocIdxMtx);
 	return bindlessIdx.erase_last();
 }
-void Device::DeAllocateBindlessIdx(uint index) const {
+void Device::DeAllocateBindlessIdx(uint16 index) const {
 	std::lock_guard lck(allocIdxMtx);
 	bindlessIdx.emplace_back(index);
 }
