@@ -7,6 +7,7 @@ class ResStateTracker;
 class Buffer;
 class Query;
 class CommandBuffer;
+class FrameResource;
 class Mesh : public GPUCollection {
 	VkAccelerationStructureKHR accel = nullptr;
 	vstd::unique_ptr<Buffer> accelBuffer;
@@ -44,7 +45,7 @@ public:
 		size_t triangleBufferOffset,
 		size_t triangleBufferSize,
 		bool allowUpdate, bool allowCompact, bool fastTrace, bool isUpdate,
-		vstd::move_only_func<void(vstd::move_only_func<void()>&&)> const& addDisposeEvent);
+		FrameResource* frameRes);
 	void Build(
 		VkCommandBuffer cb,
 		BuildInfo& buildBuffer,
@@ -62,7 +63,7 @@ public:
 		CommandBuffer* cb,
 		size_t afterCompactSize,
 		ResStateTracker& stateTracker,
-		vstd::move_only_func<void(vstd::move_only_func<void()>&&)> const& addDisposeEvent);
+		FrameResource* frameRes);
 
 	~Mesh();
 };

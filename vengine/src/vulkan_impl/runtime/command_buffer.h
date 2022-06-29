@@ -13,19 +13,16 @@ class CommandBuffer : public Resource {
 	VkCommandBuffer cmdBuffer;
 	FrameResource* pool;
 	DescriptorSetManager* descManager;
+
+public:
 	CommandBuffer(
 		DescriptorSetManager* descManager,
 		Device const* device,
 		VkCommandBuffer cmdBuffer,
 		FrameResource* pool);
-
-public:
 	VkCommandBuffer CmdBuffer() const { return cmdBuffer; }
 	CommandBuffer(CommandBuffer const&) = delete;
-	CommandBuffer(CommandBuffer&& v)
-		: cmdBuffer(v.cmdBuffer), pool(v.pool), descManager(v.descManager), Resource(v) {
-		v.cmdBuffer = nullptr;
-	}
+	CommandBuffer(CommandBuffer&& v) = delete;
 	~CommandBuffer();
 	void PreprocessCopyBuffer(
 		ResStateTracker& stateTracker,

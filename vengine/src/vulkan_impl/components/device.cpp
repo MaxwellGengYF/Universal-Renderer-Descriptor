@@ -317,8 +317,8 @@ Device* Device::CreateDevice(
 		}
 		return supportedExt == requiredExtensions.Size();
 	};
+	VkPhysicalDeviceProperties deviceProperties;
 	auto isDeviceSuitable = [&](VkPhysicalDevice device) {
-		VkPhysicalDeviceProperties deviceProperties;
 		VkPhysicalDeviceFeatures deviceFeatures;
 		vkGetPhysicalDeviceProperties(device, &deviceProperties);
 		vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
@@ -456,6 +456,7 @@ Device* Device::CreateDevice(
 	}
 	result->physicalDevice = physicalDevice;
 	result->device = device;
+	result->limits = deviceProperties.limits;
 	result->instance = instance;
 	vkGetPhysicalDeviceProperties(physicalDevice, &result->deviceProperties);
 	result->Init();

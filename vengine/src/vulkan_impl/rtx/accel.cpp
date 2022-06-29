@@ -3,10 +3,8 @@
 #include <vulkan_impl/gpu_collection/buffer.h>
 #include <vulkan_impl/runtime/res_state_tracker.h>
 #include <vulkan_impl/runtime/command_buffer.h>
+#include <vulkan_impl/runtime/frame_resource.h>
 namespace toolhub::vk {
-namespace detail {
-constexpr auto ACCEL_INST_SIZE = sizeof(VkAccelerationStructureInstanceKHR);
-}
 Accel::Accel(Device const* device)
 	: GPUCollection(device) {}
 Accel::~Accel() {
@@ -14,13 +12,12 @@ Accel::~Accel() {
 		device->vkDestroyAccelerationStructureKHR(device->device, accel, Device::Allocator());
 	}
 }
-void Accel::SetInstance(
+VkBufferCopy Accel::SetInstance(
 	size_t index,
 	Mesh const* mesh,
 	float4x4 const& mat,
 	Buffer const* uploadBuffer,
-	size_t& instByteOffset,
-	vstd::vector<VkBufferCopy>& copyCmd) {
+	size_t& instByteOffset) {
 	VkAccelerationStructureInstanceKHR inst;
 	memcpy(&inst.transform, &mat, sizeof(inst.transform));
 	inst.mask = 0xFF;
@@ -31,11 +28,12 @@ void Accel::SetInstance(
 		inst,
 		instByteOffset);
 
-	copyCmd.push_back(
-		VkBufferCopy{instByteOffset,
-					 index * detail::ACCEL_INST_SIZE,
-					 detail::ACCEL_INST_SIZE});
-	instByteOffset += detail::ACCEL_INST_SIZE;
+	auto cpy = VkBufferCopy{instByteOffset,
+							index * ACCEL_INST_SIZE,
+							ACCEL_INST_SIZE};
+
+	instByteOffset += ACCEL_INST_SIZE;
+	return cpy;
 }
 TopBuildInfo Accel::Preprocess(
 	CommandBuffer* cb,
@@ -44,18 +42,18 @@ TopBuildInfo Accel::Preprocess(
 	bool allowUpdate, bool allowCompact, bool fastTrace,
 	bool isUpdate,
 	size_t instanceUpdateCount,
-	vstd::move_only_func<void(vstd::move_only_func<void()>&&)> const& addDisposeEvent) {
+	FrameResource* frameRes) {
 	isUpdate = isUpdate && (lastInstCount == buildSize);
 	lastInstCount = buildSize;
 	if (instanceBuffer) {
-		size_t instanceCount = instanceBuffer->ByteSize() / detail::ACCEL_INST_SIZE;
+		size_t instanceCount = instanceBuffer->ByteSize() / ACCEL_INST_SIZE;
 		if (instanceCount < buildSize) {
 			do {
 				instanceCount = instanceCount * 1.5 + 8;
 			} while (instanceCount < buildSize);
 			auto newBuffer = new Buffer(
 				device,
-				instanceCount * detail::ACCEL_INST_SIZE,
+				instanceCount * ACCEL_INST_SIZE,
 				false,
 				RWState::None);
 			stateTracker.MarkBufferWrite(
@@ -71,18 +69,18 @@ TopBuildInfo Accel::Preprocess(
 				newBuffer,
 				0,
 				instanceBuffer->ByteSize());
-			addDisposeEvent([v = std::move(instanceBuffer)] {});
+			frameRes->AddDisposeEvent([v = std::move(instanceBuffer)] {});
 			instanceBuffer = vstd::create_unique(newBuffer);
 		}
 	} else {
 		instanceBuffer = vstd::create_unique(new Buffer(
 			device,
-			buildSize * detail::ACCEL_INST_SIZE,
+			buildSize * ACCEL_INST_SIZE,
 			false,
 			RWState::None));
 	}
 	TopBuildInfo info{};
-	info.instUploadBufferSize = instanceUpdateCount * detail::ACCEL_INST_SIZE;
+	info.instUploadBufferSize = instanceUpdateCount * ACCEL_INST_SIZE;
 	GetAccelBuildInfo(info.buildInfo, true, allowUpdate, allowCompact, fastTrace, isUpdate);
 	info.geoInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
 	info.geoInfo.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
@@ -107,7 +105,7 @@ TopBuildInfo Accel::Preprocess(
 				newSize = newSize * 1.5 + 8;
 			} while (newSize < accelSize);
 			newSize = CalcAlign(newSize, 256);
-			addDisposeEvent([a = std::move(accelBuffer)] {});
+			frameRes->AddDisposeEvent([a = std::move(accelBuffer)] {});
 			accelBuffer = vstd::create_unique(new Buffer(
 				device,
 				newSize,
@@ -134,7 +132,7 @@ TopBuildInfo Accel::Preprocess(
 	info.scratchSize = isUpdate ? buildSizeInfo.updateScratchSize : buildSizeInfo.buildScratchSize;
 	if (!isUpdate) {
 		if (accel) {
-			addDisposeEvent([v = std::move(instanceBuffer), accel = accel, device = device] {
+			frameRes->AddDisposeEvent([v = std::move(instanceBuffer), accel = accel, device = device] {
 				device->vkDestroyAccelerationStructureKHR(device->device, accel, Device::Allocator());
 			});
 		}
@@ -157,7 +155,7 @@ void Accel::Build(
 	CommandBuffer* cb,
 	TopBuildInfo& buildBuffer,
 	VkBuffer uploadBuffer,
-	vstd::vector<VkBufferCopy> const& instCopyCmd,
+	vstd::span<VkBufferCopy> instCopyCmd,
 	size_t buildSize) {
 	if (!instCopyCmd.empty()) {
 		vkCmdCopyBuffer(

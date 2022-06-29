@@ -3,6 +3,7 @@
 #include <vulkan_impl/runtime/res_state_tracker.h>
 #include "query.h"
 #include <vulkan_impl/runtime/command_buffer.h>
+#include <vulkan_impl/runtime/frame_resource.h>
 namespace toolhub::vk {
 Mesh::Mesh(Device const* device)
 	: GPUCollection(device) {
@@ -74,7 +75,7 @@ BuildInfo Mesh::Preprocess(
 	size_t triangleBufferOffset,
 	size_t triangleBufferSize,
 	bool allowUpdate, bool allowCompact, bool fastTrace, bool isUpdate,
-	vstd::move_only_func<void(vstd::move_only_func<void()>&&)> const& addDisposeEvent) {
+	FrameResource* frameRes) {
 	bool canUpdate = (lastTriSize == triangleBufferSize) && (lastVertSize == vertexBufferSize);
 	lastTriSize = triangleBufferSize;
 	lastVertSize = vertexBufferSize;
@@ -104,7 +105,7 @@ BuildInfo Mesh::Preprocess(
 		&buildSizeInfo);
 	auto bfSize = buildSizeInfo.accelerationStructureSize;
 	if (accelBuffer && accelBuffer->ByteSize() < bfSize) {
-		addDisposeEvent([bf = std::move(accelBuffer)] {});
+		frameRes->AddDisposeEvent([bf = std::move(accelBuffer)] {});
 	}
 	if (!accelBuffer) {
 		accelBuffer = vstd::create_unique(new Buffer(
@@ -116,7 +117,7 @@ BuildInfo Mesh::Preprocess(
 	}
 	if (!isUpdate) {
 		if (accel) {
-			addDisposeEvent([this] {
+			frameRes->AddDisposeEvent([this] {
 				device->vkDestroyAccelerationStructureKHR(device->device, accel, Device::Allocator());
 			});
 		}
@@ -193,7 +194,7 @@ void Mesh::Compact(
 	CommandBuffer* cb,
 	size_t afterCompactSize,
 	ResStateTracker& stateTracker,
-	vstd::move_only_func<void(vstd::move_only_func<void()>&&)> const& addDisposeEvent) {
+	FrameResource* frameRes) {
 	stateTracker.MarkBufferRead(
 		accelBuffer.get(),
 		BufferReadState::ComputeOrCopy);
@@ -227,7 +228,7 @@ void Mesh::Compact(
 	device->vkCmdCopyAccelerationStructureKHR(
 		cb->CmdBuffer(),
 		&createInfo);
-	addDisposeEvent([a = accel, device = this->device, b = std::move(accelBuffer)] {
+	frameRes->AddDisposeEvent([a = accel, device = this->device, b = std::move(accelBuffer)] {
 		device->vkDestroyAccelerationStructureKHR(device->device, a, Device::Allocator());
 	});
 	accel = newAccel;

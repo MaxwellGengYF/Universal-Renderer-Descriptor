@@ -35,16 +35,14 @@ void TestBindless(Device const* device, vstd::span<vbyte const> block) {
 	FrameResource frameRes(device, &cmdPool);
 
 	ResStateTracker stateTracker(device);
-	vstd::vector<vstd::move_only_func<void()>> disposeFuncs;
-	vstd::move_only_func<void(vstd::move_only_func<void()> &&)> addDisposeEvent = [&](auto&& v) { disposeFuncs.push_back(std::move(v)); };
 	BufferView readback;
 	BindlessArray arr(device, 256);
 	arr.Bind(244, &defaultBuffer, 0);
-	if (auto cmdBuffer = frameRes.AllocateCmdBuffer()) {
+	if (auto cmdBuffer = frameRes.GetCmdBuffer()) {
 		auto Cut = [&] {
 			stateTracker.Execute(cmdBuffer);
 			device->UpdateBindless();
-			frameRes.ExecuteCopy(cmdBuffer);
+			frameRes.ExecuteCopy();
 		};
 		auto upload = frameRes.AllocateUpload(4);
 		readback = frameRes.AllocateReadback(4);
@@ -90,9 +88,7 @@ void TestBindless(Device const* device, vstd::span<vbyte const> block) {
 	}
 	frameRes.Execute(nullptr);
 	frameRes.Wait();
-	for (auto&& i : disposeFuncs) {
-		i();
-	}
+	frameRes.Reset();
 	float readbackValue = 0;
 	readback.buffer->CopyValueTo(readbackValue, readback.offset);
 	std::cout << "result[0] value: " << readbackValue << '\n';

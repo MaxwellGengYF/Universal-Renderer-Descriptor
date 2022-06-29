@@ -3,6 +3,7 @@
 #include "command_pool.h"
 #include <vulkan_impl/gpu_collection/texture.h>
 #include "res_state_tracker.h"
+#include "event.h"
 namespace toolhub::vk {
 template<RWState state>
 uint64 BufferStackVisitor<state>::Allocate(uint64 size) {
@@ -41,29 +42,28 @@ FrameResource::~FrameResource() {
 	vkDestroySemaphore(device->device, semaphore, Device::Allocator());
 	vkDestroyFence(device->device, syncFence, Device::Allocator());
 }
-void FrameResource::ReleaseCmdBuffer(VkCommandBuffer buffer) {
-	allocatedBuffers.emplace_back(buffer);
-}
-vstd::optional<CommandBuffer> FrameResource::AllocateCmdBuffer() {
-	if (executing) return {};
-	VkCommandBuffer vkCmdBuffer;
-	if (allocatedBuffers.empty()) {
+CommandBuffer* FrameResource::GetCmdBuffer() {
+	if (cmdBuffer) return cmdBuffer;
+	if (!vkCmdBuffer) {
 		VkCommandBufferAllocateInfo allocInfo = vks::initializers::commandBufferAllocateInfo(
 			pool->pool,
 			VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 			1);
 		ThrowIfFailed(vkAllocateCommandBuffers(device->device, &allocInfo, &vkCmdBuffer));
-	} else {
-		vkCmdBuffer = allocatedBuffers.erase_last();
 	}
-	needExecuteBuffers.emplace_back(vkCmdBuffer);
-	return CommandBuffer(&descManager, device, vkCmdBuffer, this);
+	cmdBuffer.New(&descManager, device, vkCmdBuffer, this);
+	return cmdBuffer;
 }
 void FrameResource::Execute(FrameResource* lastFrame) {
-	if (executing && !needExecuteBuffers.empty()) return;
 	VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
-	computeSubmitInfo.commandBufferCount = needExecuteBuffers.size();
-	computeSubmitInfo.pCommandBuffers = needExecuteBuffers.data();
+	if (cmdBuffer) {
+		cmdBuffer.Delete();
+		computeSubmitInfo.commandBufferCount = 1;
+		computeSubmitInfo.pCommandBuffers = &vkCmdBuffer;
+	} else {
+		computeSubmitInfo.commandBufferCount = 0;
+		computeSubmitInfo.pCommandBuffers = nullptr;
+	}
 	if (lastFrame && lastFrame->signaled) {
 		lastFrame->signaled = false;
 		computeSubmitInfo.waitSemaphoreCount = 1;
@@ -76,11 +76,10 @@ void FrameResource::Execute(FrameResource* lastFrame) {
 		computeSubmitInfo.pSignalSemaphores = &semaphore;
 	}
 	ThrowIfFailed(vkQueueSubmit(device->computeQueue, 1, &computeSubmitInfo, syncFence));
-	executing = true;
-	needExecuteBuffers.clear();
 }
 
-void FrameResource::ExecuteCopy(CommandBuffer* cb) {
+void FrameResource::ExecuteCopy() {
+	CommandBuffer* cb = cmdBuffer;
 	for (auto&& i : bufferCopyCmds) {
 		auto&& vec = i.second;
 		auto&& pair = i.first;
@@ -146,10 +145,17 @@ void FrameResource::Wait() {
 		&syncFence,
 		true,
 		std::numeric_limits<uint64>::max()));
-	executing = false;
 }
 void FrameResource::Reset() {
 	vkResetFences(device->device, 1, &syncFence);
+	for (auto&& i : disposeFuncs) {
+		i();
+	}
+	disposeFuncs.clear();
+	for (auto&& i : syncEvents) {
+		i.first->EndOfFrame(i.second);
+	}
+	syncEvents.clear();
 	uploadAlloc.Clear();
 	defaultAlloc.Clear();
 	readBackAlloc.Clear();
@@ -325,4 +331,12 @@ void FrameResource::AddCopyCmd(
 	auto sz = src->Size();
 	v.imageExtent = {sz.x, sz.y, sz.z};
 }
+void FrameResource::AddDisposeEvent(vstd::move_only_func<void()>&& disposeFunc) {
+	disposeFuncs.emplace_back(std::move(disposeFunc));
+}
+void FrameResource::AddSyncEvent(Event* evt) {
+	evt->signalFrame++;
+	syncEvents.emplace_back(evt, evt->signalFrame);
+}
+
 }// namespace toolhub::vk

@@ -15,3 +15,4 @@
 #include <Common/spin_mutex.h>
 #include <Common/unique_ptr.h>
 #include <Common/Type.h>
+#include <Common/array.h>

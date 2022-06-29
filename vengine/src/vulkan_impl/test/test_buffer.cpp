@@ -27,22 +27,20 @@ void TestBuffer(Device const* device, vstd::span<vbyte const> block) {
 	ResStateTracker stateTracker(device);
 	CommandPool cmdPool(device);
 	FrameResource frameRes(device, &cmdPool);
-	vstd::vector<vstd::move_only_func<void()>> disposeFuncs;
 	Buffer writeBuffer(
 		device,
 		sizeof(Data),
 		false,
 		RWState::None);
-	vstd::move_only_func<void(vstd::move_only_func<void()> &&)> addDisposeEvent = [&](auto&& v) { disposeFuncs.push_back(std::move(v)); };
 	BufferView readbackBuffer;
-	if (auto cmdBuffer = frameRes.AllocateCmdBuffer()) {
+	if (auto cmdBuffer = frameRes.GetCmdBuffer()) {
 		auto Cut = [&] {
 			stateTracker.Execute(cmdBuffer);
 			device->UpdateBindless();
-			frameRes.ExecuteCopy(cmdBuffer);
+			frameRes.ExecuteCopy();
 		};
 
-		auto inputBuffer = frameRes.AllocateDefault(sizeof(Data));
+		auto inputBuffer = frameRes.AllocateDefault(sizeof(Data), device->limits.minStorageBufferOffsetAlignment);
 		auto uploadBuffer = frameRes.AllocateUpload(sizeof(Data));
 		readbackBuffer = frameRes.AllocateReadback(sizeof(Data));
 		uploadBuffer.buffer->CopyFrom({reinterpret_cast<vbyte const*>(v.data()), v.byte_size()}, uploadBuffer.offset);
@@ -70,7 +68,6 @@ void TestBuffer(Device const* device, vstd::span<vbyte const> block) {
 			uint3(1, 1, 1));
 
 		stateTracker.MarkBufferRead(&writeBuffer, BufferReadState::ComputeOrCopy);
-
 		frameRes.AddCopyCmd(
 			&writeBuffer,
 			0,
@@ -81,9 +78,7 @@ void TestBuffer(Device const* device, vstd::span<vbyte const> block) {
 	}
 	frameRes.Execute(nullptr);
 	frameRes.Wait();
-	for (auto&& i : disposeFuncs) {
-		i();
-	}
+	frameRes.Reset();
 	Data resultData;
 	readbackBuffer.buffer->CopyValueTo(resultData, readbackBuffer.offset);
 	std::cout << "result: \n"

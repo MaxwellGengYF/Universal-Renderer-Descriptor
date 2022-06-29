@@ -16,8 +16,8 @@ struct BufferStackVisitor : public vstd::StackAllocatorVisitor {
 };
 class FrameResource : public Resource {
 	friend class CommandBuffer;
-	vstd::small_vector<VkCommandBuffer> allocatedBuffers;
-	vstd::small_vector<VkCommandBuffer> needExecuteBuffers;
+	VkCommandBuffer vkCmdBuffer = nullptr;
+	vstd::optional<CommandBuffer> cmdBuffer;
 	BufferStackVisitor<RWState::Upload> uploadVisitor;
 	BufferStackVisitor<RWState::None> defaultVisitor;
 	BufferStackVisitor<RWState::Readback> readbackVisitor;
@@ -28,14 +28,12 @@ class FrameResource : public Resource {
 	VkFence syncFence;
 	VkSemaphore semaphore;
 	DescriptorSetManager descManager;
-	bool executing = false;
-	void ReleaseCmdBuffer(VkCommandBuffer buffer);
 	template<typename Src, typename Dst>
 	struct CopyKey {
 		Src const* src;
 		Dst const* dst;
 	};
-	bool signaled = false;
+	// Copy
 	vstd::vector<vstd::vector<VkBufferCopy>> bufferCopyVecPool;
 	vstd::vector<vstd::vector<VkImageCopy>> imgCopyVecPool;
 	vstd::vector<vstd::vector<VkBufferImageCopy>> bufImgCopyVecPool;
@@ -45,6 +43,10 @@ class FrameResource : public Resource {
 	Map<Texture, Texture, VkImageCopy> imgCopyCmds;
 	Map<Buffer, Texture, VkBufferImageCopy> bufImgCopyCmds;
 	Map<Texture, Buffer, VkBufferImageCopy> imgBufCopyCmds;
+	// Sync
+	vstd::vector<vstd::move_only_func<void()>> disposeFuncs;
+	vstd::vector<std::pair<Event*, uint64>> syncEvents;
+	bool signaled = false;
 
 public:
 	static constexpr size_t INIT_STACK_SIZE = 1024ull * 1024 * 4ull;
@@ -52,12 +54,14 @@ public:
 	~FrameResource();
 	FrameResource(FrameResource const&) = delete;
 	FrameResource(FrameResource&&) = delete;
-	vstd::optional<CommandBuffer> AllocateCmdBuffer();
+	CommandBuffer* GetCmdBuffer();
 	void Execute(FrameResource* lastFrame);
 	void InsertSemaphore(Event const* evt);
-	void ExecuteCopy(CommandBuffer* cb);
+	void ExecuteCopy();
 	void Wait();
 	void Reset();
+	void AddDisposeEvent(vstd::move_only_func<void()>&& disposeFunc);
+	void AddSyncEvent(Event* evt);
 	void AddCopyCmd(
 		Buffer const* src,
 		uint64 srcOffset,

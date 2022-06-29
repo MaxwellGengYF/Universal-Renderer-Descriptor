@@ -11,12 +11,13 @@
 #include <vulkan_impl/gpu_collection/texture.h>
 #include <vulkan_impl/rtx/mesh.h>
 #include <vulkan_impl/rtx/accel.h>
-#include <dxc/dxc_util.h>
 #include <vulkan_impl/rtx/query.h>
+#include <dxc/dxc_util.h>
 using namespace toolhub::vk;
 namespace toolhub::vk {
 void TestBuffer(Device const* device, vstd::span<vbyte const> block);
 void TestBindless(Device const* device, vstd::span<vbyte const> block);
+void TestRayQuery(Device const* device, vstd::span<vbyte const> block);
 }// namespace toolhub::vk
 void CompileAndTest(
 	Device const* device,
@@ -45,7 +46,7 @@ void CompileAndTest(
 int main() {
 	auto instance = Device::InitVkInstance();
 	auto device = Device::CreateDevice(instance, nullptr, 0);
-	CompileAndTest(device, "test_bindless.compute", TestBindless);
+	CompileAndTest(device, "test_rayquery.compute", TestRayQuery);
 
 	delete device;
 	vkDestroyInstance(instance, Device::Allocator());

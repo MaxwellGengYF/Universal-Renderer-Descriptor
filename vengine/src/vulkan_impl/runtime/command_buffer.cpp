@@ -10,7 +10,6 @@ namespace toolhub::vk {
 CommandBuffer::~CommandBuffer() {
 	if (cmdBuffer) {
 		ThrowIfFailed(vkEndCommandBuffer(cmdBuffer));
-		pool->ReleaseCmdBuffer(cmdBuffer);
 	}
 }
 CommandBuffer::CommandBuffer(

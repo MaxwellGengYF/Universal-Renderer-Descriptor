@@ -7,6 +7,7 @@ class Mesh;
 class ResStateTracker;
 class Buffer;
 class CommandBuffer;
+class FrameResource;
 class Accel : public GPUCollection {
 	vstd::unique_ptr<Buffer> instanceBuffer;//VkAccelerationStructureInstanceKHR
 	vstd::unique_ptr<Buffer> accelBuffer;
@@ -14,17 +15,18 @@ class Accel : public GPUCollection {
 	size_t lastInstCount = 0;
 
 public:
+	static constexpr auto ACCEL_INST_SIZE = sizeof(VkAccelerationStructureInstanceKHR);
+
 	VkAccelerationStructureKHR AccelNativeHandle() const { return accel; }
 	Buffer* AccelBuffer() const { return accelBuffer.get(); }
 	Accel(Device const* device);
 	~Accel();
-	void SetInstance(
+	VkBufferCopy SetInstance(
 		size_t index,
 		Mesh const* mesh,
 		float4x4 const& mat,
 		Buffer const* uploadBuffer,
-		size_t& instByteOffset,
-		vstd::vector<VkBufferCopy>& copyCmd);
+		size_t& instByteOffset);
 	TopBuildInfo Preprocess(
 		CommandBuffer* cb,
 		ResStateTracker& stateTracker,
@@ -32,14 +34,14 @@ public:
 		bool allowUpdate, bool allowCompact, bool fastTrace,
 		bool isUpdate,
 		size_t instanceUpdateCount,
-		vstd::move_only_func<void(vstd::move_only_func<void()>&&)> const& addDisposeEvent);
+		FrameResource* frameRes);
 
 	void Build(
 		ResStateTracker& stateTracker,
 		CommandBuffer* cb,
 		TopBuildInfo& buildBuffer,
 		VkBuffer uploadBuffer,
-		vstd::vector<VkBufferCopy> const& instCopyCmd,
+		vstd::span<VkBufferCopy> instCopyCmd,
 		size_t buildSize);
 	Tag GetTag() const override {
 		return Tag::Accel;

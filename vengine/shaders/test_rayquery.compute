@@ -1,0 +1,66 @@
+#define CLOSEST_HIT_RAY_FLAG (0)
+#define ANY_HIT_RAY_FLAG (RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER)
+bool TraceAny(RaytracingAccelerationStructure accel, RayDesc ray) {
+    RayQuery<ANY_HIT_RAY_FLAG> q;
+    q.TraceRayInline(
+    accel,
+    ANY_HIT_RAY_FLAG,
+    ~0,
+    ray);
+    q.Proceed();
+    return q.CommittedStatus() != COMMITTED_NOTHING;
+}
+
+struct RayPayload{
+    uint instId;
+    uint primId;
+    float2 uv;
+};
+RayPayload TraceClosest(RaytracingAccelerationStructure accel, RayDesc ray) {
+    RayQuery<CLOSEST_HIT_RAY_FLAG> q;
+    q.TraceRayInline(
+    accel,
+    CLOSEST_HIT_RAY_FLAG,
+    ~0,
+    ray);
+    RayPayload payload;
+    q.Proceed();
+    if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT) {
+        payload.instId = q.CommittedInstanceIndex();
+        payload.primId = q.CommittedPrimitiveIndex();
+        payload.uv = q.CommittedTriangleBarycentrics();
+    } 
+    else {
+        payload.instId = 4294967295u;
+    }
+    return payload;
+}
+
+/*
+Texture2D<float> input2D[] : register(t0, space2);
+Texture3D<float> input3D[] : register(t0, space3);
+SamplerState inputSamp[16] : register(s0, space4);*/
+RaytracingAccelerationStructure accel : register(t0);
+RWStructuredBuffer<float2> output : register(u1);
+static const float3 origins[5] = {
+    float3(0.25, 0.25, 0),
+    float3(0.75, 0.25, 0),
+    float3(0.25, 0.25, 0),
+    float3(0.75, 0.75, 0),
+    float3(0.5, 0.5, 0)
+};
+[numthreads(5,1,1)]
+void main(uint id : SV_DISPATCHTHREADID){
+    RayDesc desc;
+    desc.Origin = origins[id];
+    desc.Direction = float3(0,0,1);
+    desc.TMin = 0;
+    desc.TMax = 100;
+    RayPayload payload = TraceClosest(
+    accel,
+    desc);
+    if(payload.instId !=4294967295u)
+    output[id] = payload.uv;
+    else
+    output[id] = float2(-100, -100);
+}

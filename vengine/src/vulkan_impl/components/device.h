@@ -32,6 +32,7 @@ class Device : public vstd::IOperatorNewBase {
 	mutable vstd::StackAllocator bindlessStackAlloc;
 
 public:
+	VkPhysicalDeviceLimits limits;
 	static VkInstance InitVkInstance();
 	uint16 AllocateBindlessIdx() const;
 	void DeAllocateBindlessIdx(uint16 index) const;

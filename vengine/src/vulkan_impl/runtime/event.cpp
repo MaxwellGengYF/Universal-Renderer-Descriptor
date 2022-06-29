@@ -14,7 +14,7 @@ void Event::EndOfFrame(uint64 targetFrame) {
 		std::lock_guard lck(mtx);
         finishedFrame = targetFrame;
 	}
-	cv.notify_one();
+	cv.notify_all();
 }
 Event::~Event() {
 	vkDestroySemaphore(
