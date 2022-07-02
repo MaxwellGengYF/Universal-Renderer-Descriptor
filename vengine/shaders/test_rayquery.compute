@@ -45,7 +45,7 @@ RWStructuredBuffer<float2> output : register(u1);
 static const float3 origins[5] = {
     float3(0.25, 0.25, 0),
     float3(0.75, 0.25, 0),
-    float3(0.25, 0.25, 0),
+    float3(0.25, 0.75, 0),
     float3(0.75, 0.75, 0),
     float3(0.5, 0.5, 0)
 };
@@ -60,7 +60,7 @@ void main(uint id : SV_DISPATCHTHREADID){
     accel,
     desc);
     if(payload.instId !=4294967295u)
-    output[id] = payload.uv;
+    output[id] += payload.uv;
     else
-    output[id] = float2(-100, -100);
+    output[id] += float2(-100, -100);
 }

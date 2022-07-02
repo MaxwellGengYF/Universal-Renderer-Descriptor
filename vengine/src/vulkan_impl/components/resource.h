@@ -1,6 +1,6 @@
 #pragma once
-#include <vulkan_impl/vulkan_include.h>
-#include <vulkan_impl/components/device.h>
+#include <vulkan_include.h>
+#include <components/device.h>
 #include <Common/small_vector.h>
 namespace toolhub::vk {
 

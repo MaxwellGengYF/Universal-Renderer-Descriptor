@@ -1,5 +1,5 @@
 #pragma once
-#include <vulkan_impl/components/resource.h>
+#include <components/resource.h>
 namespace toolhub::vk {
 class ShaderCode : public Resource {
 	vstd::span<vbyte const> spirvCode;

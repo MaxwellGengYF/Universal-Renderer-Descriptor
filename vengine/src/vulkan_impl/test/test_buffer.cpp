@@ -1,9 +1,9 @@
-#include <vulkan_impl/gpu_collection/buffer.h>
-#include <vulkan_impl/shader/compute_shader.h>
-#include <vulkan_impl/shader/shader_code.h>
-#include <vulkan_impl/runtime/command_pool.h>
-#include <vulkan_impl/runtime/frame_resource.h>
-#include <vulkan_impl/runtime/res_state_tracker.h>
+#include <gpu_collection/buffer.h>
+#include <shader/compute_shader.h>
+#include <shader/shader_code.h>
+#include <runtime/command_pool.h>
+#include <runtime/frame_resource.h>
+#include <runtime/res_state_tracker.h>
 
 namespace toolhub::vk {
 void TestBuffer(Device const* device, vstd::span<vbyte const> block) {

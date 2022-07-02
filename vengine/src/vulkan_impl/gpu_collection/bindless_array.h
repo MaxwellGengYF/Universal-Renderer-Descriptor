@@ -1,7 +1,7 @@
 #pragma once
 #include "buffer.h"
 #include "texture.h"
-#include <vulkan_impl/types/buffer_view.h>
+#include <types/buffer_view.h>
 
 namespace toolhub::vk {
 class GPUCollection;

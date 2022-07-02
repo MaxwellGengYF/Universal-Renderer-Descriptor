@@ -1,8 +1,8 @@
 #pragma once
-#include <vulkan_impl/vulkan_include.h>
+#include <vulkan_include.h>
 #include <Common/small_vector.h>
-#include <vulkan_impl/shader/descriptor_pool.h>
-#include <vulkan_impl/types/bind_desriptor.h>
+#include <shader/descriptor_pool.h>
+#include <types/bind_desriptor.h>
 #include <shared_mutex>
 #include <Utility/StackAllocator.h>
 #include <Common/LockFreeArrayQueue.h>

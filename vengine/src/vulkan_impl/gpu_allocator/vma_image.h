@@ -1,6 +1,6 @@
 #pragma once
-#include <vulkan_impl/vulkan_include.h>
-#include <vulkan_impl/gpu_allocator/vk_mem_alloc.h>
+#include <vulkan_include.h>
+#include <gpu_allocator/vk_mem_alloc.h>
 namespace toolhub::vk {
 class GPUAllocator;
 struct VmaImage {

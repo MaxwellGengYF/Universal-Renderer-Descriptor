@@ -1,9 +1,9 @@
 #pragma once
-#include <vulkan_impl/components/resource.h>
+#include <components/resource.h>
 namespace toolhub::vk {
-class FrameResource;
+class RenderPipeline;
 class Event : public Resource {
-	friend class FrameResource;
+	friend class RenderPipeline;
 	// manage queue 2 queue sync
 	VkSemaphore semaphore;
 	std::mutex mtx;

@@ -1,5 +1,5 @@
-#include <vulkan_impl/gpu_collection/buffer.h>
-#include <vulkan_impl/types/buffer_view.h>
+#include <gpu_collection/buffer.h>
+#include <types/buffer_view.h>
 namespace toolhub::vk {
 Buffer::Buffer(
 	Device const* device,

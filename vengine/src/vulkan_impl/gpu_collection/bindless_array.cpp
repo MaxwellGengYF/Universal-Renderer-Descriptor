@@ -1,6 +1,6 @@
-#include <vulkan_impl/gpu_collection/bindless_array.h>
-#include <vulkan_impl/runtime/res_state_tracker.h>
-#include <vulkan_impl/runtime/frame_resource.h>
+#include <gpu_collection/bindless_array.h>
+#include <runtime/res_state_tracker.h>
+#include <runtime/frame_resource.h>
 namespace toolhub::vk {
 BindlessArray::BindlessArray(
 	Device const* device,

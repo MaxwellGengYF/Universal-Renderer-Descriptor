@@ -1,7 +1,7 @@
-#include <vulkan_impl/Utility/shader_utility.h>
-#include <vulkan_impl/components/device.h>
-#include <vulkan_impl/ve_shaderc/visibility.h>
-#include <vulkan_impl/ve_shaderc/shaderc.hpp>
+#include <Utility/shader_utility.h>
+#include <components/device.h>
+#include <ve_shaderc/visibility.h>
+#include <ve_shaderc/shaderc.hpp>
 namespace toolhub::vk {
 VkShaderModule ShaderUtility::LoadShader(vstd::span<vbyte const> data, VkDevice device) {
 	VkShaderModule shaderModule;

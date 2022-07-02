@@ -9,7 +9,8 @@ class RenderPipeline : public Resource {
 	RenderPipeline(RenderPipeline&&) = delete;
 	vstd::LockFreeArrayQueue<vstd::variant<
 		size_t,
-		vstd::move_only_func<void()>>>
+		vstd::move_only_func<void()>,
+		std::pair<Event*, size_t>>>
 		executingList;
 	std::mutex callbackMtx;
 	std::mutex syncMtx;
@@ -32,20 +33,24 @@ class RenderPipeline : public Resource {
 	//the executing frame
 	FrameResource* lastExecuteFrame = nullptr;
 	//the preparing frame
-	size_t lastAllocFrame = std::numeric_limits<size_t>::max();
-	size_t executeFrameIndex = 0;
+	size_t executeFrameIndex = FRAME_BUFFER - 1;
 	bool enabled = true;
 	// thread
 	std::thread callbackThread;
 
 public:
-	FrameResource* PreparingFrame() { return &frameRes[lastAllocFrame]; }
+	ResStateTracker& StateTracker() { return stateTracker; }
+	FrameResource* PreparingFrame() { return &frameRes[executeFrameIndex]; }
 	RenderPipeline(Device const* device);
 	~RenderPipeline();
 	// get next frame, wait if not finished
-	void BeginPrepareFrame();
+	FrameResource* BeginPrepareFrame();
 	void EndPrepareFrame();
 	void Complete();
 	void ForceSyncInRendering();
+	void AddEvtSync(Event* evt);
+	void AddCallback(vstd::move_only_func<void()>&& func);
+	template<typename... Args>
+	void AddTask(Args&&... args);
 };
 }// namespace toolhub::vk

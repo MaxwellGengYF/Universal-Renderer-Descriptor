@@ -342,7 +342,7 @@ typedef struct shaderc_include_result {
 // The kinds of include requests.
 enum shaderc_include_type {
 	shaderc_include_type_relative,// E.g. #include "source"
-	shaderc_include_type_standard // E.g. #include <vulkan_impl/source>
+	shaderc_include_type_standard // E.g. #include <source>
 };
 
 // An includer callback type for mapping an #include request to an include

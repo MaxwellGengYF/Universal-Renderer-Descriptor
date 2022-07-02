@@ -9,7 +9,6 @@ public:
 		CamArgs camArgs;
 		mat4** instMatrices;
 		uint* instCount;
-		vstd::vector<uint> objectResults;
 	};
 	std::shared_mutex camLock;
 	struct MeshInstance {
@@ -21,7 +20,6 @@ public:
     vstd::vector<CullUnit*> cullUnits;
 	vstd::vector<MeshInstance*> instances;
 
-	MeshInstance objects;
 	tf::Executor executor;
 	tf::Future<void> shadowTask;
 	SpotLightCulling();

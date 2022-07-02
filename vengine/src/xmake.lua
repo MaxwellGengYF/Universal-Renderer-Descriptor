@@ -12,14 +12,6 @@ function ProjFilter(name)
     end
     return nil
 end
-function Macro(tab)
-    if is_mode("release") then
-        table.insert(tab, "NDEBUG")
-    else
-        table.insert(tab, "_DEBUG")
-    end
-    return tab
-end
 
 rule("copy_to_unity")
 after_build(function(target)
@@ -65,11 +57,11 @@ end)
 BuildProject({
     projectName = "Abseil",
     projectType = "shared",
-    macros = function()
+    privateDefines = function()
         return function({"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX", "ABSL_BUILD_DLL"})
     end,
     files = {"abseil/absl/**.cc"},
-    includePaths = {"./", "abseil"},
+    privateIncludePaths = {"./", "abseil"},
     exception = true
 })
 ]]
@@ -78,51 +70,53 @@ BuildProject({
 BuildProject({
     projectName = "VEngine_DLL",
     projectType = "shared",
-    macros = function()
-        return Macro({"COMMON_DLL_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    event = function()
+        add_defines("_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX", {public = true})
+        add_defines("COMMON_DLL_PROJECT")
+        add_files("Common/**.cpp", "Utility/**.cpp", "taskflow/src.cpp")
+        add_includedirs("./", {public=true})
+        add_rules("copy_to_build")
     end,
-    files = {"Common/*.cpp", "Utility/*.cpp", "taskflow/src.cpp"},
-    includePaths = IncludePaths,
+    releaseEvent = function()
+        add_defines("NDEBUG", {public = true})
+    end,
+    debugEvent = function()
+        add_defines("_DEBUG", "DEBUG", {public = true})
+    end,
     unityBuildBatch = 4,
     exception = true,
-    rules = "copy_to_build"
 })
 
 -- VEngine_Compute
 BuildProject({
     projectName = "VEngine_Compute",
     projectType = "shared",
-    macros = function()
-        return Macro({"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    event = function()
+        add_files("Unity/**.cpp")
+        add_deps("VEngine_DLL")
     end,
-    files = {"Unity/**.cpp"},
-    includePaths = IncludePaths,
-    depends = "VEngine_DLL",
-    unityBuildBatch = 4,
     exception = true
 })
 -- VEngine_Database
 BuildProject({
     projectName = "VEngine_Database",
     projectType = "shared",
-    macros = function()
-        return Macro({"VENGINE_DATABASE_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    event = function()
+        add_files("Database/**.cpp")
+        add_deps("VEngine_DLL")
+        add_defines("VENGINE_DATABASE_PROJECT")
     end,
-    files = {"Database/*.cpp"},
-    includePaths = IncludePaths,
-    depends = "VEngine_DLL",
     exception = true
 })
 -- STB
 BuildProject({
     projectName = "stb",
     projectType = "shared",
-    macros = function()
-        return Macro({"STB_EXPORT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    event = function()
+        add_files("stb/**.cpp")
+        add_deps("VEngine_DLL")
+        add_defines("STB_EXPORT")
     end,
-    files = {"stb/*.cpp"},
-    depends = "VEngine_DLL",
-    includePaths = IncludePaths,
     exception = true
 })
 -- TextureTools
@@ -131,75 +125,64 @@ BuildProject({
         return ProjFilter("TextureTools")
     end,
     projectType = "binary",
-    macros = function()
-        return Macro({"TEXTOOLS_EXPORT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    event = function()
+        add_files("TextureTools/**.cpp")
+        add_deps("VEngine_DLL", "stb")
+        add_defines("TEXTOOLS_EXPORT")
     end,
-    files = {"TextureTools/*.cpp"},
-    depends = {"VEngine_DLL", "stb"},
-    includePaths = IncludePaths,
     exception = true
 })
 -- VEngine_Graphics
 BuildProject({
     projectName = "VEngine_Graphics",
     projectType = "shared",
-    macros = function()
-        return Macro({"VENGINE_GRAPHICS_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    event = function()
+        add_files("Graphics/**.cpp")
+        add_deps("VEngine_DLL")
+        add_defines("VENGINE_GRAPHICS_PROJECT")
+        add_links("lib/dxcompiler")
     end,
-    files = {"Graphics/**.cpp"},
-    includePaths = IncludePaths,
-    depends = "VEngine_DLL",
     unityBuildBatch = 4,
-    exception = true,
-    links = "lib/dxcompiler"
+    exception = true
 })
 -- VEngine_DirectX
 BuildProject({
     projectName = "VEngine_DirectX",
     projectType = "shared",
-    macros = function()
-        return Macro({"VENGINE_DIRECTX_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
-    end,
-    files = {"DirectX/**.cpp"},
-    includePaths = IncludePaths,
-    depends = {"VEngine_Graphics"},
-    unityBuildBatch = 4,
-    exception = true,
-    links = function()
-        if is_plat("windows") then
-            return {"DXGI", "D3D12"}
-        end
-        return nil
-    end
-})
+    event = function()
+        add_files("DirectX/**.cpp")
+        add_deps("VEngine_Graphics")
+        add_defines("VENGINE_DIRECTX_PROJECT")
+        add_links("DXGI", "D3D12")
 
+    end,
+    unityBuildBatch = 4,
+    exception = true
+})
 -- VEngine_IR
 BuildProject({
     projectName = function()
         return ProjFilter("VEngine_IR")
     end,
     projectType = "binary",
-    macros = function()
-        return Macro({"VENGINE_IR_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    event = function()
+        add_files("ir/**.cpp")
+        add_deps("VEngine_DLL")
+        add_defines("VENGINE_IR_PROJECT")
     end,
-    files = "ir/**.cpp",
-    includePaths = IncludePaths,
-    depends = "VEngine_DLL",
+    unityBuildBatch = 4,
     exception = true
 })
-
 -- File refresher
 BuildProject({
     projectName = function()
         return ProjFilter("FileRefresher")
     end,
     projectType = "binary",
-    macros = function()
-        return Macro({"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    event = function()
+        add_files("CPPBuilder/FileRefresher.cpp")
+        add_deps("VEngine_DLL")
     end,
-    files = {"CPPBuilder/FileRefresher.cpp"},
-    includePaths = IncludePaths,
-    depends = "VEngine_DLL",
     exception = true
 })
 -- FrustumCulling
@@ -214,14 +197,12 @@ BuildProject({
             return "binary"
         end
     end,
-    macros = function()
-        return Macro({"_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    event = function()
+        add_files("Renderer/**.cpp")
+        add_deps("VEngine_DLL")
+        add_rules("copy_to_unity")
     end,
-    files = "Renderer/*.cpp",
-    includePaths = IncludePaths,
-    depends = "VEngine_DLL",
-    exception = true,
-    rules = "copy_to_unity"
+    exception = true
 })
 
 -- VEngine_Vulkan
@@ -230,22 +211,19 @@ BuildProject({
         return ProjFilter("VEngine_Vulkan")
     end,
     projectType = "binary",
-    macros = function()
-        return Macro({"VENGINE_VULKAN_PROJECT", "_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX"})
+    event = function()
+        add_files("vulkan_impl/**.cpp", "dxc/**.cpp")
+        add_includedirs("./vulkan_impl")
+        add_deps("VEngine_DLL")
+        add_rules("copy_glfw", "copy_shaders")
+        add_links(VulkanLib .. "Lib/vulkan-1", "User32", "kernel32", "Shell32")
     end,
-    files = {"vulkan_impl/**.cpp", "dxc/*.cpp"},
-    includePaths = {"./"},
-    depends = "VEngine_DLL",
-    exception = true,
-    links = function()
-        local tab = {VulkanLib .. "Lib/vulkan-1", "User32", "kernel32", "Shell32"}
-        if is_mode("debug") then
-            table.insert(tab, "lib/debug/shaderc_shared")
-        else
-            table.insert(tab, "lib/release/shaderc_shared")
-        end
-        return tab
+    releaseEvent = function()
+        add_links("lib/release/shaderc_shared")
     end,
-    rules = {"copy_glfw", "copy_shaders"},
-    unityBuildBatch = 4
+    debugEvent = function()
+        add_links("lib/debug/shaderc_shared")
+    end,
+    unityBuildBatch = 4,
+    exception = true
 })

@@ -1,6 +1,6 @@
 #pragma once
-#include <vulkan_impl/types/bind_desriptor.h>
-#include <vulkan_impl/components/resource.h>
+#include <types/bind_desriptor.h>
+#include <components/resource.h>
 #include <Common/small_vector.h>
 namespace toolhub::vk {
 class ShaderCode;

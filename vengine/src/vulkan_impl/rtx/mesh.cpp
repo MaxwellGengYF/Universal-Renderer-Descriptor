@@ -1,9 +1,9 @@
 #include "mesh.h"
-#include <vulkan_impl/gpu_collection/buffer.h>
-#include <vulkan_impl/runtime/res_state_tracker.h>
+#include <gpu_collection/buffer.h>
+#include <runtime/res_state_tracker.h>
 #include "query.h"
-#include <vulkan_impl/runtime/command_buffer.h>
-#include <vulkan_impl/runtime/frame_resource.h>
+#include <runtime/command_buffer.h>
+#include <runtime/frame_resource.h>
 namespace toolhub::vk {
 Mesh::Mesh(Device const* device)
 	: GPUCollection(device) {
@@ -117,8 +117,8 @@ BuildInfo Mesh::Preprocess(
 	}
 	if (!isUpdate) {
 		if (accel) {
-			frameRes->AddDisposeEvent([this] {
-				device->vkDestroyAccelerationStructureKHR(device->device, accel, Device::Allocator());
+			frameRes->AddDisposeEvent([this, a = accel] {
+				device->vkDestroyAccelerationStructureKHR(device->device, a, Device::Allocator());
 			});
 		}
 		VkAccelerationStructureCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};

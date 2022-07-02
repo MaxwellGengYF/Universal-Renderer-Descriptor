@@ -1,4 +1,4 @@
-#include <vulkan_impl/shader/descriptor_pool.h>
+#include <shader/descriptor_pool.h>
 #include <Common/small_vector.h>
 namespace toolhub::vk {
 

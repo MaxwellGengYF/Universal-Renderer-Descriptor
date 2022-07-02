@@ -1,6 +1,6 @@
 #pragma once
-#include <vulkan_impl/vulkan_initializer.hpp>
-#include <vulkan_impl/components/resource.h>
+#include <vulkan_initializer.hpp>
+#include <components/resource.h>
 namespace toolhub::vk {
 class DescriptorPool : public Resource {
 protected:

@@ -1,11 +1,11 @@
 #include "command_pool.h"
 #include "command_buffer.h"
 #include "frame_resource.h"
-#include <vulkan_impl/gpu_collection/buffer.h>
-#include <vulkan_impl/shader/descriptorset_manager.h>
-#include <vulkan_impl/shader/compute_shader.h>
-#include <vulkan_impl/runtime/res_state_tracker.h>
-#include <vulkan_impl/rtx/accel.h>
+#include <gpu_collection/buffer.h>
+#include <shader/descriptorset_manager.h>
+#include <shader/compute_shader.h>
+#include <runtime/res_state_tracker.h>
+#include <rtx/accel.h>
 namespace toolhub::vk {
 CommandBuffer::~CommandBuffer() {
 	if (cmdBuffer) {

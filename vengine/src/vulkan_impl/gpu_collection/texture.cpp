@@ -1,5 +1,5 @@
-#include <vulkan_impl/gpu_collection/texture.h>
-#include <vulkan_impl/types/tex_view.h>
+#include <gpu_collection/texture.h>
+#include <types/tex_view.h>
 namespace toolhub::vk {
 Texture::Texture(
 	Device const* device,

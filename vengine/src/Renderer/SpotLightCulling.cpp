@@ -2,6 +2,7 @@
 #include <Utility/MathLib.h>
 namespace toolhub::renderer {
 void SpotLightCulling::ExecuteCull() {
+	if (cullUnits.empty()) return;
 	tf::Taskflow flow;
 	flow.emplace_all(
 		[&](size_t i) {
@@ -13,12 +14,12 @@ void SpotLightCulling::ExecuteCull() {
 	shadowTask = executor.run(std::move(flow));
 }
 void SpotLightCulling::Wait() {
-	if (shadowTask.valid()) shadowTask.wait();
-	shadowTask = {};
+	if (shadowTask.valid()) {
+		shadowTask.wait();
+		shadowTask = {};
+	}
 }
 void SpotLightCulling::Task(CullUnit& unit) {
-	unit.objectResults.clear();
-	unit.objectResults.reserve(objects.posCount);
 	auto&& cam = unit.camArgs;
 	auto frustumBBox = MathLib::GetFrustumBoundingBox(
 		cam.cameraRight,
@@ -62,12 +63,6 @@ void SpotLightCulling::Task(CullUnit& unit) {
 			return contact;
 		}
 	};
-	// cull objects
-	for (auto i : vstd::range(objects.posCount)) {
-		auto&& tr = objects.poses[i];
-		if (!CullObj.operator()<false>(tr)) continue;
-		unit.objectResults.push_back(i);
-	}
 	// cull instances
 	for (auto instIdx : vstd::range(instances.size())) {
 		auto& inst = instances[instIdx];
@@ -101,6 +96,8 @@ VENGINE_UNITY_EXTERN SpotLightCulling::CullUnit* spcAllocateCamera() {
 	return SPC::context->cullUnitPool.New();
 }
 VENGINE_UNITY_EXTERN void spcDestroyCamera(SpotLightCulling::CullUnit* ptr) {
+	using namespace SPC;
+	std::lock_guard lck(context->camLock);
 	SPC::context->cullUnitPool.Delete(ptr);
 }
 VENGINE_UNITY_EXTERN void spcClearCameraCmd() {
@@ -117,6 +114,8 @@ VENGINE_UNITY_EXTERN SpotLightCulling::MeshInstance* spcAllocateInstancer() {
 	return SPC::context->instancePool.New();
 }
 VENGINE_UNITY_EXTERN void spcDestroyInstancer(SpotLightCulling::MeshInstance* ptr) {
+	using namespace SPC;
+	std::lock_guard lck(context->camLock);
 	SPC::context->instancePool.Delete(ptr);
 }
 VENGINE_UNITY_EXTERN void spcClearInstanceCmd() {

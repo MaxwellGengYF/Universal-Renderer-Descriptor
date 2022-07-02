@@ -1,4 +1,5 @@
 #include "render_pipeline.h"
+#include "event.h"
 namespace toolhub::vk {
 RenderPipeline::RenderPipeline(Device const* device)
 	: pool(device),
@@ -39,6 +40,9 @@ void RenderPipeline::CallbackThreadMain() {
 				},
 				[&](vstd::move_only_func<void()>& func) {
 					func();
+				},
+				[&](std::pair<Event*, size_t>& v) {
+					v.first->EndOfFrame(v.second);
 				});
 		}
 		{
@@ -48,30 +52,25 @@ void RenderPipeline::CallbackThreadMain() {
 		syncCv.notify_all();
 	}
 }
-void RenderPipeline::BeginPrepareFrame() {
-	auto curFrame = executeFrameIndex;
-	lastAllocFrame = curFrame;
-	executeFrameIndex = (++executeFrameIndex) % FRAME_BUFFER;
-	auto&& locker = frameResLock[curFrame];
+FrameResource* RenderPipeline::BeginPrepareFrame() {
+	++executeFrameIndex;
+	executeFrameIndex %= FRAME_BUFFER;
+	auto&& locker = frameResLock[executeFrameIndex];
 	{
 		std::unique_lock lck(locker.mtx);
 		while (locker.executing) {
 			locker.cv.wait(lck);
 		}
 	}
+	return PreparingFrame();
 }
 void RenderPipeline::EndPrepareFrame() {
-	auto&& locker = frameResLock[lastAllocFrame];
-	auto&& frame = frameRes[lastAllocFrame];
+	auto&& locker = frameResLock[executeFrameIndex];
+	auto&& frame = frameRes[executeFrameIndex];
 	frame.Execute(lastExecuteFrame);
 	lastExecuteFrame = &frame;
-	mainThreadPosition++;
-	{
-		std::lock_guard lck(callbackMtx);
-		locker.executing = true;
-		executingList.Push(lastAllocFrame);
-	}
-	callbackCv.notify_one();
+	locker.executing = true;
+	AddTask(executeFrameIndex);
 }
 void RenderPipeline::Complete() {
 	std::unique_lock lck(syncMtx);
@@ -79,14 +78,31 @@ void RenderPipeline::Complete() {
 		syncCv.wait(lck);
 	}
 }
+template<typename... Args>
+void RenderPipeline::AddTask(Args&&... args) {
+	mainThreadPosition++;
+	executingList.Push(std::forward<Args>(args)...);
+	callbackMtx.lock();
+	callbackMtx.unlock();
+	callbackCv.notify_one();
+}
 void RenderPipeline::ForceSyncInRendering() {
-	auto&& locker = frameResLock[lastAllocFrame];
-	auto&& frame = frameRes[lastAllocFrame];
+	auto&& locker = frameResLock[executeFrameIndex];
+	auto&& frame = frameRes[executeFrameIndex];
 	frame.Execute(lastExecuteFrame);
 	lastExecuteFrame = nullptr;
 	Complete();
 	frame.Wait();
 	frame.Reset();
 	frame.GetCmdBuffer();
+}
+void RenderPipeline::AddEvtSync(Event* evt) {
+	auto&& frame = frameRes[executeFrameIndex];
+	//TODO: gpu fence
+	auto count = ++evt->signalFrame;
+	AddTask(evt, count);
+}
+void RenderPipeline::AddCallback(vstd::move_only_func<void()>&& func) {
+	AddTask(std::move(func));
 }
 }// namespace toolhub::vk

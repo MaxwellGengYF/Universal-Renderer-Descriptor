@@ -1,7 +1,7 @@
 #pragma once
-#include <vulkan_impl/vulkan_include.h>
-#include <vulkan_impl/types/buffer_view.h>
-#include <vulkan_impl/types/tex_view.h>
+#include <vulkan_include.h>
+#include <types/buffer_view.h>
+#include <types/tex_view.h>
 namespace toolhub::vk {
 class Texture;
 class Buffer;

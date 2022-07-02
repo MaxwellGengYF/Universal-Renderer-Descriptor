@@ -1,17 +1,17 @@
-#include <vulkan_impl/components/device.h>
+#include <components/device.h>
 #include <Utility/BinaryReader.h>
-#include <vulkan_impl/shader/compute_shader.h>
-#include <vulkan_impl/shader/shader_code.h>
-#include <vulkan_impl/gpu_collection/buffer.h>
-#include <vulkan_impl/shader/descriptor_pool.h>
-#include <vulkan_impl/shader/descriptorset_manager.h>
-#include <vulkan_impl/runtime/command_pool.h>
-#include <vulkan_impl/runtime/frame_resource.h>
-#include <vulkan_impl/runtime/res_state_tracker.h>
-#include <vulkan_impl/gpu_collection/texture.h>
-#include <vulkan_impl/rtx/mesh.h>
-#include <vulkan_impl/rtx/accel.h>
-#include <vulkan_impl/rtx/query.h>
+#include <shader/compute_shader.h>
+#include <shader/shader_code.h>
+#include <gpu_collection/buffer.h>
+#include <shader/descriptor_pool.h>
+#include <shader/descriptorset_manager.h>
+#include <runtime/command_pool.h>
+#include <runtime/frame_resource.h>
+#include <runtime/res_state_tracker.h>
+#include <gpu_collection/texture.h>
+#include <rtx/mesh.h>
+#include <rtx/accel.h>
+#include <rtx/query.h>
 #include <dxc/dxc_util.h>
 using namespace toolhub::vk;
 namespace toolhub::vk {

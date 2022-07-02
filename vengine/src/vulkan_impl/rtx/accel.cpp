@@ -1,9 +1,9 @@
 #include "accel.h"
 #include "mesh.h"
-#include <vulkan_impl/gpu_collection/buffer.h>
-#include <vulkan_impl/runtime/res_state_tracker.h>
-#include <vulkan_impl/runtime/command_buffer.h>
-#include <vulkan_impl/runtime/frame_resource.h>
+#include <gpu_collection/buffer.h>
+#include <runtime/res_state_tracker.h>
+#include <runtime/command_buffer.h>
+#include <runtime/frame_resource.h>
 namespace toolhub::vk {
 Accel::Accel(Device const* device)
 	: GPUCollection(device) {}
@@ -132,8 +132,8 @@ TopBuildInfo Accel::Preprocess(
 	info.scratchSize = isUpdate ? buildSizeInfo.updateScratchSize : buildSizeInfo.buildScratchSize;
 	if (!isUpdate) {
 		if (accel) {
-			frameRes->AddDisposeEvent([v = std::move(instanceBuffer), accel = accel, device = device] {
-				device->vkDestroyAccelerationStructureKHR(device->device, accel, Device::Allocator());
+			frameRes->AddDisposeEvent([a = accel, device = device] {
+				device->vkDestroyAccelerationStructureKHR(device->device, a, Device::Allocator());
 			});
 		}
 		VkAccelerationStructureCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};

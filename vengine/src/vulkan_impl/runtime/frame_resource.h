@@ -1,9 +1,9 @@
 #pragma once
-#include <vulkan_impl/components/resource.h>
+#include <components/resource.h>
 #include "command_buffer.h"
 #include <Utility/StackAllocator.h>
-#include <vulkan_impl/gpu_collection/buffer.h>
-#include <vulkan_impl/shader/descriptorset_manager.h>
+#include <gpu_collection/buffer.h>
+#include <shader/descriptorset_manager.h>
 #include <Common/functional.h>
 namespace toolhub::vk {
 class CommandPool;
@@ -45,7 +45,11 @@ class FrameResource : public Resource {
 	Map<Texture, Buffer, VkBufferImageCopy> imgBufCopyCmds;
 	// Sync
 	vstd::vector<vstd::move_only_func<void()>> disposeFuncs;
-	vstd::vector<std::pair<Event*, uint64>> syncEvents;
+	vstd::vector<vstd::unique_ptr<Buffer>> scratchBuffers;
+	vstd::vector<size_t> scratchBufferViews;
+	size_t* bfViewBegin = nullptr;
+	Buffer* curScratchBuffer = nullptr;
+	size_t scratchAccumulateSize = 0;
 	bool signaled = false;
 
 public:
@@ -58,10 +62,10 @@ public:
 	void Execute(FrameResource* lastFrame);
 	void InsertSemaphore(Event const* evt);
 	void ExecuteCopy();
+	void ExecuteScratchAlloc(ResStateTracker& stateTracker);
 	void Wait();
 	void Reset();
 	void AddDisposeEvent(vstd::move_only_func<void()>&& disposeFunc);
-	void AddSyncEvent(Event* evt);
 	void AddCopyCmd(
 		Buffer const* src,
 		uint64 srcOffset,
@@ -114,5 +118,11 @@ public:
 	BufferView AllocateDefault(
 		uint64 size,
 		uint64 align = 0);
+	void SignalSemaphore(VkSemaphore semaphore);
+	void WaitSemaphore(VkSemaphore semaphore);
+	// Accels
+	void ResetScratch();
+	void AddScratchSize(size_t size);
+	BufferView GetScratchBufferView();
 };
 }// namespace toolhub::vk

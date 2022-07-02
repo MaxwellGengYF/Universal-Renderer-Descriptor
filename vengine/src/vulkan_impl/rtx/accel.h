@@ -1,5 +1,5 @@
 #pragma once
-#include <vulkan_impl/gpu_collection/gpu_collection.h>
+#include <gpu_collection/gpu_collection.h>
 #include "build_info.h"
 #include <Common/functional.h>
 namespace toolhub::vk {

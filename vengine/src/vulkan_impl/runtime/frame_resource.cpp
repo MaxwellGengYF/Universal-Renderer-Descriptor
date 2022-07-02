@@ -1,7 +1,7 @@
 #include "frame_resource.h"
-#include <vulkan_impl/vulkan_initializer.hpp>
+#include <vulkan_initializer.hpp>
 #include "command_pool.h"
-#include <vulkan_impl/gpu_collection/texture.h>
+#include <gpu_collection/texture.h>
 #include "res_state_tracker.h"
 #include "event.h"
 namespace toolhub::vk {
@@ -55,7 +55,7 @@ CommandBuffer* FrameResource::GetCmdBuffer() {
 	return cmdBuffer;
 }
 void FrameResource::Execute(FrameResource* lastFrame) {
-	VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
+	VkSubmitInfo computeSubmitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
 	if (cmdBuffer) {
 		cmdBuffer.Delete();
 		computeSubmitInfo.commandBufferCount = 1;
@@ -64,17 +64,32 @@ void FrameResource::Execute(FrameResource* lastFrame) {
 		computeSubmitInfo.commandBufferCount = 0;
 		computeSubmitInfo.pCommandBuffers = nullptr;
 	}
+	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 	if (lastFrame && lastFrame->signaled) {
 		lastFrame->signaled = false;
 		computeSubmitInfo.waitSemaphoreCount = 1;
-		VkSemaphore phore = lastFrame->semaphore;
-		computeSubmitInfo.pWaitSemaphores = &phore;
+		computeSubmitInfo.pWaitSemaphores = &lastFrame->semaphore;
+		computeSubmitInfo.pWaitDstStageMask = &waitStage;
 	}
 	if (!signaled) {
 		signaled = true;
 		computeSubmitInfo.signalSemaphoreCount = 1;
 		computeSubmitInfo.pSignalSemaphores = &semaphore;
 	}
+	ThrowIfFailed(vkQueueSubmit(device->computeQueue, 1, &computeSubmitInfo, syncFence));
+}
+void FrameResource::SignalSemaphore(VkSemaphore semaphore) {
+	VkSubmitInfo computeSubmitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+	computeSubmitInfo.signalSemaphoreCount = 1;
+	computeSubmitInfo.pSignalSemaphores = &semaphore;
+	ThrowIfFailed(vkQueueSubmit(device->computeQueue, 1, &computeSubmitInfo, syncFence));
+}
+void FrameResource::WaitSemaphore(VkSemaphore semaphore) {
+	VkSubmitInfo computeSubmitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+	computeSubmitInfo.waitSemaphoreCount = 1;
+	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+	computeSubmitInfo.pWaitSemaphores = &semaphore;
+	computeSubmitInfo.pWaitDstStageMask = &waitStage;
 	ThrowIfFailed(vkQueueSubmit(device->computeQueue, 1, &computeSubmitInfo, syncFence));
 }
 
@@ -137,6 +152,28 @@ void FrameResource::ExecuteCopy() {
 	bufImgCopyCmds.Clear();
 	imgBufCopyCmds.Clear();
 }
+void FrameResource::ExecuteScratchAlloc(ResStateTracker& stateTracker) {
+	if (scratchAccumulateSize == 0) return;
+	bfViewBegin = scratchBufferViews.begin();
+	for (auto&& i : scratchBuffers) {
+		if (i->ByteSize() >= scratchAccumulateSize) {
+			curScratchBuffer = i.get();
+			goto SKIP_NEW_SCRATCH_BUFFER;
+		}
+	}
+	curScratchBuffer = new Buffer(
+		device,
+		scratchAccumulateSize,
+		false,
+		RWState::None,
+		256);
+	scratchBuffers.emplace_back(curScratchBuffer);
+SKIP_NEW_SCRATCH_BUFFER:
+	stateTracker.MarkBufferWrite(
+		BufferView(curScratchBuffer, 0, scratchAccumulateSize),
+		BufferWriteState::Accel);
+	scratchAccumulateSize = 0;
+}
 
 void FrameResource::Wait() {
 	ThrowIfFailed(vkWaitForFences(
@@ -152,15 +189,13 @@ void FrameResource::Reset() {
 		i();
 	}
 	disposeFuncs.clear();
-	for (auto&& i : syncEvents) {
-		i.first->EndOfFrame(i.second);
-	}
-	syncEvents.clear();
 	uploadAlloc.Clear();
 	defaultAlloc.Clear();
 	readBackAlloc.Clear();
 	descManager.EndFrame();
+	scratchBuffers.clear();
 }
+
 namespace detail {
 static BufferView AllocateBuffer(
 	vstd::StackAllocator& alloc,
@@ -334,9 +369,21 @@ void FrameResource::AddCopyCmd(
 void FrameResource::AddDisposeEvent(vstd::move_only_func<void()>&& disposeFunc) {
 	disposeFuncs.emplace_back(std::move(disposeFunc));
 }
-void FrameResource::AddSyncEvent(Event* evt) {
-	evt->signalFrame++;
-	syncEvents.emplace_back(evt, evt->signalFrame);
+void FrameResource::ResetScratch() {
+	scratchBufferViews.clear();
+	scratchAccumulateSize = 0;
 }
-
+void FrameResource::AddScratchSize(size_t size) {
+	scratchAccumulateSize += size;
+	scratchBufferViews.emplace_back(size);
+}
+BufferView FrameResource::GetScratchBufferView() {
+	BufferView bf(
+		curScratchBuffer,
+		scratchAccumulateSize,
+		*bfViewBegin);
+	scratchAccumulateSize += *bfViewBegin;
+	bfViewBegin++;
+	return bf;
+}
 }// namespace toolhub::vk

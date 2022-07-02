@@ -1,10 +1,10 @@
-#include <vulkan_impl/shader/compute_shader.h>
+#include <shader/compute_shader.h>
 #include <Common/small_vector.h>
-#include <vulkan_impl/vulkan_initializer.hpp>
-#include <vulkan_impl/shader/descriptor_pool.h>
-#include <vulkan_impl/utility/shader_utility.h>
-#include <vulkan_impl/shader/shader_code.h>
-#include <vulkan_impl/shader/descriptorset_manager.h>
+#include <vulkan_initializer.hpp>
+#include <shader/descriptor_pool.h>
+#include <utility/shader_utility.h>
+#include <shader/shader_code.h>
+#include <shader/descriptorset_manager.h>
 namespace toolhub::vk {
 ComputeShader::ComputeShader(
 	Device const* device,

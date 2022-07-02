@@ -1,6 +1,6 @@
 #pragma once
-#include <vulkan_impl/types/buffer_view.h>
-#include <vulkan_impl/components/device.h>
+#include <types/buffer_view.h>
+#include <components/device.h>
 namespace toolhub::vk {
 struct BuildInfo {
 	VkAccelerationStructureBuildGeometryInfoKHR buildInfo{};

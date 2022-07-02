@@ -1,14 +1,14 @@
 
-#include <vulkan_impl/HelloTriangleApplication.h>
+#include <HelloTriangleApplication.h>
 #define GLFW_INCLUDE_VULKAN
-#include <vulkan_impl/GLFW/glfw3.h>
+#include <GLFW/glfw3.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
-#include <vulkan_impl/GLFW/glfw3native.h>
-#include <vulkan_impl/iostream>
-#include <vulkan_impl/stdexcept>
-#include <vulkan_impl/cstdlib>
+#include <GLFW/glfw3native.h>
+#include <iostream>
+#include <stdexcept>
+#include <cstdlib>
 #include <Utility/BinaryReader.h>
-#include <vulkan_impl/vulkan_include.h>
+#include <vulkan_include.h>
 namespace toolhub::vk {
 //Debug
 #ifdef DEBUG

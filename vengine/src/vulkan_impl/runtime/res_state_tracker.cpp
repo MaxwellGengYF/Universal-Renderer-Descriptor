@@ -1,8 +1,8 @@
 #include "res_state_tracker.h"
-#include <vulkan_impl/runtime/command_buffer.h>
-#include <vulkan_impl/gpu_collection/buffer.h>
-#include <vulkan_impl/gpu_collection/texture.h>
-#include <vulkan_impl/gpu_collection/bindless_array.h>
+#include <runtime/command_buffer.h>
+#include <gpu_collection/buffer.h>
+#include <gpu_collection/texture.h>
+#include <gpu_collection/bindless_array.h>
 namespace toolhub::vk {
 namespace detail {
 static constexpr VkAccessFlagBits GENERIC_READ_ACCESS = VkAccessFlagBits(VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT);

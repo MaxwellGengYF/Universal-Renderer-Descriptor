@@ -1,11 +1,11 @@
 #include "device.h"
 #include <Common/small_vector.h>
-#include <vulkan_impl/gpu_allocator/gpu_allocator.h>
-#include <vulkan_impl/shader/descriptorset_manager.h>
-#include <vulkan_impl/types/buffer_view.h>
-#include <vulkan_impl/types/tex_view.h>
-#include <vulkan_impl/gpu_collection/buffer.h>
-#include <vulkan_impl/gpu_collection/texture.h>
+#include <gpu_allocator/gpu_allocator.h>
+#include <shader/descriptorset_manager.h>
+#include <types/buffer_view.h>
+#include <types/tex_view.h>
+#include <gpu_collection/buffer.h>
+#include <gpu_collection/texture.h>
 namespace toolhub::vk {
 namespace detail {
 static auto validationLayers = {"VK_LAYER_KHRONOS_validation"};

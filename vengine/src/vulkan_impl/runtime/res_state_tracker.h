@@ -1,7 +1,7 @@
 #pragma once
-#include <vulkan_impl/types/buffer_view.h>
-#include <vulkan_impl/types/tex_view.h>
-#include <vulkan_impl/components/resource.h>
+#include <types/buffer_view.h>
+#include <types/tex_view.h>
+#include <components/resource.h>
 #include <bitset>
 #include <Common/BitArray.h>
 namespace toolhub::vk {

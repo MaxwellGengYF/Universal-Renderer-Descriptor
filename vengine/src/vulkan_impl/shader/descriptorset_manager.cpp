@@ -1,9 +1,9 @@
-#include <vulkan_impl/shader/descriptorset_manager.h>
-#include <vulkan_impl/runtime/res_state_tracker.h>
-#include <vulkan_impl/gpu_collection/buffer.h>
-#include <vulkan_impl/gpu_collection/texture.h>
-#include <vulkan_impl/rtx/accel.h>
-#include <vulkan_impl/runtime/res_state_tracker.h>
+#include <shader/descriptorset_manager.h>
+#include <runtime/res_state_tracker.h>
+#include <gpu_collection/buffer.h>
+#include <gpu_collection/texture.h>
+#include <rtx/accel.h>
+#include <runtime/res_state_tracker.h>
 namespace toolhub::vk {
 
 namespace detail {

@@ -1,6 +1,6 @@
 #pragma once
-#include <vulkan_impl/gpu_collection/gpu_collection.h>
-#include <vulkan_impl/gpu_allocator/vma_buffer.h>
+#include <gpu_collection/gpu_collection.h>
+#include <gpu_allocator/vma_buffer.h>
 namespace toolhub::vk {
 class Buffer : public GPUCollection {
 	VmaBuffer vmaBuffer;

@@ -1,5 +1,5 @@
 #pragma once
-#include <vulkan_impl/components/resource.h>
+#include <components/resource.h>
 namespace toolhub::vk {
 class Query : public Resource {
 	VkQueryPool queryPool = nullptr;

@@ -1,5 +1,5 @@
 #pragma once
-#include <vulkan_impl/components/resource.h>
+#include <components/resource.h>
 #include "command_buffer.h"
 namespace toolhub::vk {
 class FrameResource;
