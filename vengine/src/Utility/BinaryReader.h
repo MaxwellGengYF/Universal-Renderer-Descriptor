@@ -17,7 +17,7 @@ private:
 
 public:
 	BinaryReader(vstd::string const& path);
-	void Read(char* ptr, uint64 len);
+	void Read(void* ptr, uint64 len);
 	vstd::string ReadToString();
 	vstd::vector<vbyte> Read(bool addNullEnd = false);
 	operator bool() const {

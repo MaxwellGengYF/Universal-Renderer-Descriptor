@@ -1,6 +1,5 @@
 
 #include <Utility/FileUtility.h>
-#include <io.h>
 #include <stdio.h>
 #include <direct.h>
 #include <Utility/StringUtility.h>
@@ -130,7 +129,7 @@ vstd::string_view FileUtility::GetFileName(vstd::string const& filePath) {
 	return filePath;
 }
 void FileUtility::ToLegalFolderPath(vstd::string& path) {
-	if (path.empty())return;
+	if (path.empty()) return;
 	for (auto&& i : path) {
 		if (i == '\\') i = '/';
 	}
@@ -172,7 +171,7 @@ bool FileUtility::ReadCommandFile(vstd::string const& path, vstd::HashMap<vstd::
 	//Add Command
 	vstd::vector<vstd::string_view> commands;
 	for (auto ite = lines.begin(); ite != lines.end(); ++ite) {
-		
+
 		auto splitIte = StringUtil::Split(*ite, ' ');
 		for (auto&& i : splitIte) {
 			commands.push_back(i);

@@ -15,4 +15,15 @@ public:
 	void unlock() noexcept;
 	static void pause();
 };
+class VENGINE_DLL_COMMON spin_shared_mutex final {
+	spin_mutex writeMtx;
+	std::atomic_size_t readCount = 0;
+
+public:
+	spin_shared_mutex() noexcept;
+	void lock() noexcept;
+	void unlock() noexcept;
+	void lock_shared() noexcept;
+	void unlock_shared() noexcept;
+};
 }// namespace vstd

@@ -1,6 +1,7 @@
 #pragma once
 #include <Common/Common.h>
 #include <Common/functional.h>
+#include <io.h>
 class VENGINE_DLL_COMMON FileUtility {
 private:
 	FileUtility() = delete;
@@ -21,6 +22,6 @@ public:
 	static void GetFolders(vstd::string const& path, vstd::function<void(vstd::string&&)> const& callback);
 	static vstd::string GetProgramPath();
 	static vstd::string_view GetFileExtension(vstd::string const& filePath);//.xxx
-	static vstd::string_view GetFileName(vstd::string const& filePath);	   //.xxx
+	static vstd::string_view GetFileName(vstd::string const& filePath);		//.xxx
 	static void ToLegalFolderPath(vstd::string& path);
 };

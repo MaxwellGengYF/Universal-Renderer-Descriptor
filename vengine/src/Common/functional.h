@@ -9,6 +9,7 @@
 namespace vstd {
 static constexpr size_t FUNCTION_PLACEHOLDERSIZE = 40;
 
+/*
 template<class T, VEngine_AllocType allocType = VEngine_AllocType::VEngine>
 class function;
 template<class Ret,
@@ -169,11 +170,12 @@ public:
 	}
 };
 
+*/
 template<class T, VEngine_AllocType allocType = VEngine_AllocType::VEngine>
-class move_only_func;
+class function;
 template<class Ret,
 		 class... TypeArgs, VEngine_AllocType allocType>
-class move_only_func<Ret(TypeArgs...), allocType> {
+class function<Ret(TypeArgs...), allocType> {
 	using Allocator = VAllocHandle<allocType>;
 	template<typename Call, VEngine_AllocType>
 	friend struct LazyCallback;
@@ -194,7 +196,7 @@ class move_only_func<Ret(TypeArgs...), allocType> {
 	}
 	template<typename Func>
 	static constexpr bool LegalFunction() {
-		if constexpr (std::is_same_v<std::remove_cvref_t<Func>, move_only_func>) {
+		if constexpr (std::is_same_v<std::remove_cvref_t<Func>, function>) {
 			return false;
 		} else {
 			return std::is_invocable_r_v<Ret, Func, TypeArgs...>;
@@ -215,14 +217,14 @@ public:
 		}
 		runFunc = nullptr;
 	}
-	move_only_func() noexcept
+	function() noexcept
 		: placePtr(nullptr),
 		  runFunc(nullptr) {
 	}
-	move_only_func(std::nullptr_t) noexcept
-		: move_only_func() {
+	function(std::nullptr_t) noexcept
+		: function() {
 	}
-	move_only_func(funcPtr_t<Ret(TypeArgs...)> p) noexcept {
+	function(funcPtr_t<Ret(TypeArgs...)> p) noexcept {
 		struct FuncPtrLogic final : public IProcessFunctor {
 			void Delete(void* ptr) const override {
 			}
@@ -237,8 +239,8 @@ public:
 		new (&logicPlaceHolder) FuncPtrLogic();
 		reinterpret_cast<size_t&>(placePtr) = reinterpret_cast<size_t>(p);
 	}
-	move_only_func(const move_only_func& f) noexcept = delete;
-	move_only_func(move_only_func&& f) noexcept
+	function(const function& f) noexcept = delete;
+	function(function&& f) noexcept
 		: logicPlaceHolder(f.logicPlaceHolder),
 		  runFunc(f.runFunc) {
 		if (f.placePtr) {
@@ -249,7 +251,7 @@ public:
 	}
 	template<typename Functor>
 	requires(LegalFunction<Functor>())
-		move_only_func(Functor&& f)
+		function(Functor&& f)
 	noexcept {
 		using PureType = std::remove_cvref_t<Functor>;
 		constexpr bool USE_HEAP = (sizeof(PureType) > FUNCTION_PLACEHOLDERSIZE);
@@ -293,13 +295,13 @@ public:
 	}
 	template<typename Functor>
 	void operator=(Functor&& f) noexcept {
-		this->~move_only_func();
-		new (this) move_only_func(std::forward<Functor>(f));
+		this->~function();
+		new (this) function(std::forward<Functor>(f));
 	}
 	Ret operator()(TypeArgs... t) const noexcept {
 		return runFunc(placePtr, std::forward<TypeArgs>(t)...);
 	}
-	~move_only_func() noexcept {
+	~function() noexcept {
 		if (placePtr) {
 			GetPtr()->Delete(placePtr);
 		}
@@ -312,13 +314,13 @@ struct LazyCallback;
 template<typename R1, typename... A1, VEngine_AllocType allocType>
 class LazyCallback<R1(A1...), allocType> {
 private:
-	vstd::move_only_func<R1(A1...), allocType> callBack;
-	vstd::move_only_func<void()> disposer;
+	vstd::function<R1(A1...), allocType> callBack;
+	vstd::function<void()> disposer;
 
 public:
 	template<typename A, typename B>
 	requires(
-		std::is_constructible_v<vstd::move_only_func<R1(A1...)>, A&&> || std::is_constructible_v<vstd::move_only_func<void()>, B&&>)
+		std::is_constructible_v<vstd::function<R1(A1...)>, A&&> || std::is_constructible_v<vstd::function<void()>, B&&>)
 		LazyCallback(A&& a, B&& b)
 		: callBack(std::forward<A>(a)),
 		  disposer(std::forward<B>(b)) {}
@@ -338,5 +340,4 @@ void push_back_func(Vec&& vec, Func&& func, size_t count) {
 		count,
 		LazyEval<std::remove_cvref_t<Func>>(std::forward<Func>(func)));
 }
-
 }// namespace vstd

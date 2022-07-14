@@ -303,7 +303,7 @@ VENGINE_UNITY_EXTERN uint BindCSM(
 	auto size = frustum_culling::context->shadowArgs.size();
 	frustum_culling::context->shadowArgs.emplace_back(
 		args,
-		vstd::vector<FrustumCulling::ShadowmapData>(cascades, cascadeCount));
+		vstd::span<FrustumCulling::ShadowmapData>(cascades, cascadeCount));
 	return size;
 }
 VENGINE_UNITY_EXTERN void BindSunLight(

@@ -1,9 +1,10 @@
+-- BuildBinary = 'VEngine_Compute'
 -- BuildBinary = 'FileRefresher'
--- BuildBinary = 'FrustumCulling'
+BuildBinary = 'RecreateRendering'
 -- BuildBinary = 'TextureTools'
 -- BuildBinary = 'VEngine_IR'
-BuildBinary = 'VEngine_Vulkan'
-IncludePaths = {"./"}
+-- BuildBinary = 'VEngine_Vulkan'
+-- BuildBinary = "fsr2"
 VulkanLib = "C:/VulkanSDK/1.3.216.0/"
 
 function ProjFilter(name)
@@ -15,12 +16,10 @@ end
 
 rule("copy_to_unity")
 after_build(function(target)
-    if is_mode("release") then
-        local build_path = "$(buildir)/windows/x64/release/"
-        local dstPath = "D:/UnityProject/Assets/Plugins/";
-        os.cp(build_path .. "/FrustumCulling.dll", dstPath)
-        os.cp(build_path .. "/VEngine_DLL.dll", dstPath)
-    end
+    local build_path = "$(buildir)/windows/x64/release/"
+    local dstPath = "D:/UnityProject/Assets/Plugins/";
+    os.cp(build_path .. "/RecreateRendering.dll", dstPath)
+    os.cp(build_path .. "/VEngine_DLL.dll", dstPath)
 end)
 rule("copy_to_build")
 after_build(function(target)
@@ -71,20 +70,28 @@ BuildProject({
     projectName = "VEngine_DLL",
     projectType = "shared",
     event = function()
-        add_defines("_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX", {public = true})
+        add_defines("_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS", "NOMINMAX", {
+            public = true
+        })
         add_defines("COMMON_DLL_PROJECT")
         add_files("Common/**.cpp", "Utility/**.cpp", "taskflow/src.cpp")
-        add_includedirs("./", {public=true})
+        add_includedirs("./", {
+            public = true
+        })
         add_rules("copy_to_build")
     end,
     releaseEvent = function()
-        add_defines("NDEBUG", {public = true})
+        add_defines("NDEBUG", {
+            public = true
+        })
     end,
     debugEvent = function()
-        add_defines("_DEBUG", "DEBUG", {public = true})
+        add_defines("_DEBUG", "DEBUG", {
+            public = true
+        })
     end,
     unityBuildBatch = 4,
-    exception = true,
+    exception = true
 })
 
 -- VEngine_Compute
@@ -92,8 +99,18 @@ BuildProject({
     projectName = "VEngine_Compute",
     projectType = "shared",
     event = function()
+        add_files("ShaderVariantCull/**.cpp")
+        add_deps("VEngine_DLL")
+    end,
+    exception = true
+})
+BuildProject({
+    projectName = "VEngine_UnityNative",
+    projectType = "shared",
+    event = function()
         add_files("Unity/**.cpp")
         add_deps("VEngine_DLL")
+        add_defines("VENGINE_UNITY_NATIVE")
     end,
     exception = true
 })
@@ -185,10 +202,10 @@ BuildProject({
     end,
     exception = true
 })
--- FrustumCulling
+-- RecreateRendering
 BuildProject({
     projectName = function()
-        return ProjFilter("FrustumCulling")
+        return ProjFilter("RecreateRendering")
     end,
     projectType = function()
         if is_mode("release") then
@@ -199,7 +216,9 @@ BuildProject({
     end,
     event = function()
         add_files("Renderer/**.cpp")
-        add_deps("VEngine_DLL")
+        add_deps("VEngine_UnityNative")
+    end,
+    releaseEvent = function()
         add_rules("copy_to_unity")
     end,
     exception = true
@@ -225,5 +244,31 @@ BuildProject({
         add_links("lib/debug/shaderc_shared")
     end,
     unityBuildBatch = 4,
+    exception = true
+})
+BuildProject({
+    projectName = function()
+        return ProjFilter("fsr2")
+    end,
+    projectType = "shared",
+
+    event = function()
+        add_defines("FFX_CPU")
+        add_files("AMD_FSR2/**.cpp")
+        add_includedirs("AMD_FSR2/")
+        add_deps("VEngine_UnityNative")
+        after_build(function(target)
+            local build_path = nil
+            if is_mode("release") then
+                build_path = "$(buildir)/windows/x64/release/"
+            else
+                build_path = "$(buildir)/windows/x64/debug/"
+            end
+            local dstPath = "D:/UnityProject/Assets/Plugins/";
+            os.cp(build_path .. "/fsr2.dll", dstPath)
+            os.cp(build_path .. "/VEngine_DLL.dll", dstPath)
+            os.cp(build_path .. "/VEngine_UnityNative.dll", dstPath)
+        end)
+    end,
     exception = true
 })

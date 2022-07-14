@@ -1,0 +1,52 @@
+#pragma once
+#include <Common/Common.h>
+#include <Utility/VGuid.h>
+#include <Unity/func_table.h>
+namespace toolhub::vpp {
+struct PathSpan {
+	char const* str;
+	size_t strLen;
+};
+struct SaveMeshArg {
+	vstd::Guid fileUid;
+	void* data;
+	size_t byteSize;
+	bool saveResult;
+};
+struct ReadMeshArg {
+	vstd::Guid uid;
+	void* ptr;
+	size_t size;
+};
+struct CullMeshArg{
+	vstd::Guid* guid;
+	size_t guidCount;
+};
+class VTable {
+public:
+	static unity::CallbackFuncPtr GetSingleMeshPath;
+	static unity::CallbackFuncPtr GetBatchMeshFilePath;
+	static unity::CallbackFuncPtr GetBatchFileName;
+	static void Init();
+
+	static void OnEnable(void*);
+	static void GetNewUID(void* ptr);
+	// SetMeshArg
+	static void SaveMesh(void* saveMeshArg);
+	// uint64
+	static void RemoveMeshFile(void* uid);
+	static void ReadMeshFile(void* readMeshFile);
+	static void RemoveMeshFiles(void*);
+	static void CullMeshFile(void*);
+};
+class Runtime {
+public:
+	vstd::HashMap<vstd::Guid, std::pair<size_t, size_t>> meshes;
+	vstd::vector<std::byte> colorBuffer;
+	void Clear();
+	void BatchMesh(void*);
+	void ReadMesh(void* readMesh);
+	void SerBatchFile(void*);
+	void DeserBatchFile(void*);
+};
+}// namespace toolhub::vpp

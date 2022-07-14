@@ -42,5 +42,24 @@ bool spin_mutex::isLocked() const noexcept {
 void spin_mutex::unlock() noexcept {
 	flag.clear(std::memory_order::release);
 }
+spin_shared_mutex::spin_shared_mutex() noexcept {}
+void spin_shared_mutex::lock() noexcept {
+	writeMtx.lock();
+}
+void spin_shared_mutex::unlock() noexcept {
+	writeMtx.unlock();
+}
+void spin_shared_mutex::lock_shared() noexcept {
+	auto readCount = this->readCount.fetch_add(1, std::memory_order_relaxed);
+	if(readCount == 0){
+		writeMtx.lock();
+	}
+}
+void spin_shared_mutex::unlock_shared() noexcept {
+	auto readCount = this->readCount.fetch_sub(1, std::memory_order_relaxed);
+	if(readCount == 1){
+		writeMtx.unlock();
+	}
+}
 }// namespace vstd
 #undef VENGINE_INTRIN_PAUSE

@@ -1,5 +1,5 @@
 
-#include <Unity/SVCull/PassType.h>
+#include <ShaderVariantCull/SVCull/PassType.h>
 #include <Common/DynamicDLL.h>
 #include <Database/DatabaseInclude.h>
 #include <Utility/BinaryReader.h>
@@ -19,8 +19,7 @@ public:
 	IJsonDict* passDict = nullptr;
 	vstd::vector<vstd::string> shaderVar;
 	SVCullTool()
-		: db(GetDataBase()->CreateDatabase())
-	{
+		: db(GetDataBase()->CreateDatabase()) {
 	}
 	bool ParseFile(vstd::string const& path) const {
 		BinaryReader reader(path);
@@ -83,4 +82,13 @@ VENGINE_UNITY_EXTERN bool SVCull_CullShaderVar() {
 }
 VENGINE_UNITY_EXTERN void SVCull_ClearList() {
 	sct.shaderVar.clear();
+}
+// test shader var culling
+struct TestHash {
+	size_t operator()(auto&& a) const {
+		return 0;
+	}
+};
+int main() {
+	return 0;
 }

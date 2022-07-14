@@ -100,6 +100,16 @@ private:
 			vec.arr = Allocate(capacity);
 		}
 	}
+	vector(T const* data, size_t count) : mSize(count) {
+		InitCapacity(count);
+		if constexpr (!(std::is_trivially_copy_constructible_v<T>)) {
+			for (size_t i = 0; i < mSize; ++i) {
+				new (vec.arr + i) T(data[i]);
+			}
+		} else {
+			memcpy(vec.arr, data, sizeof(T) * mSize);
+		}
+	}
 
 public:
 	void reserve(size_t newCapacity) noexcept {
@@ -130,7 +140,6 @@ public:
 			vec.arr = newArr;
 		}
 		mCapacity = newCapacity;
-
 	}
 	T* data() noexcept { return vec.arr; }
 	T const* data() const noexcept { return vec.arr; }
@@ -157,15 +166,7 @@ public:
 			memcpy(vec.arr, ptr, sizeof(T) * mSize);
 		}
 	}
-	vector(T const* data, size_t count) : mSize(count) {
-		InitCapacity(count);
-		if constexpr (!(std::is_trivially_copy_constructible_v<T>)) {
-			for (size_t i = 0; i < mSize; ++i) {
-				new (vec.arr + i) T(data[i]);
-			}
-		} else {
-			memcpy(vec.arr, data, sizeof(T) * mSize);
-		}
+	vector(span<T> const& lst) : vector(lst.data(), lst.size()) {
 	}
 	vector(span<T const> const& lst) : vector(lst.data(), lst.size()) {
 	}
@@ -394,16 +395,16 @@ public:
 	T* end() noexcept {
 		return vec.arr + mSize;
 	}
-	T& front() noexcept{
+	T& front() noexcept {
 		return *vec.arr;
 	}
-	T const& front() const noexcept{
+	T const& front() const noexcept {
 		return *vec.arr;
 	}
-	T& back() noexcept{
+	T& back() noexcept {
 		return vec.arr[mSize - 1];
 	}
-	T const& back() const noexcept{
+	T const& back() const noexcept {
 		return vec.arr[mSize - 1];
 	}
 	T const* begin() const noexcept {
@@ -424,12 +425,12 @@ public:
 	T* rend() noexcept {
 		return {begin() - 1};
 	}
-    T const *rbegin() const noexcept {
-        return {end() - 1};
-    }
-    T const *rend() const noexcept {
-        return {begin() - 1};
-    }
+	T const* rbegin() const noexcept {
+		return {end() - 1};
+	}
+	T const* rend() const noexcept {
+		return {begin() - 1};
+	}
 
 	void erase(T* ite) noexcept {
 		size_t index = reinterpret_cast<size_t>(ite) - reinterpret_cast<size_t>(vec.arr);

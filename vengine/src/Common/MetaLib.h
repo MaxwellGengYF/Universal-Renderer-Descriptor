@@ -575,6 +575,7 @@ public:
 		}
 	}
 };
+
 template<typename T>
 class IEnumerable {
 public:
@@ -585,6 +586,45 @@ public:
 	virtual ~IEnumerable() {}
 };
 struct IteEndTag {};
+namespace detail {
+template<typename T>
+class IteRef {
+	T ptr;
+
+public:
+	IteRef(T ptr) : ptr(ptr) {}
+	decltype(auto) operator*() const {
+		return ptr->operator*();
+	}
+	void operator++() {
+		ptr->operator++();
+	}
+	void operator++(int32) {
+		ptr->operator++();
+	}
+	bool operator==(IteEndTag tag) {
+		return ptr->operator==(tag);
+	}
+};
+}// namespace detail
+template<typename T>
+struct IteWrapper {
+	T t;
+	template<typename... Args>
+	requires(std::is_constructible_v<T, Args&&...>)
+		IteWrapper(Args&&... args)
+		: t(std::forward<Args>(args)...) {}
+	decltype(auto) begin() {
+		using PureT = std::remove_reference_t<T>;
+		if constexpr (std::is_pointer_v<PureT>) {
+			return detail::IteRef<T>{t};
+		} else {
+			return detail::IteRef<T*>{&t};
+		}
+	}
+	IteEndTag end() const { return {}; }
+};
+
 template<typename T>
 class Iterator {
 private:
@@ -1272,39 +1312,46 @@ struct hash<variant<T...>> {
 		return v.visit_or(
 			size_t(0),
 			[&](auto&& v) {
-				return hash<std::remove_cvref_t<decltype(v)>>()(v);
+				const hash<std::remove_cvref_t<decltype(v)>> hs;
+				return hs(v);
 			});
+	}
+	template<typename V>
+	requires((variant<T...>::IndexOf<V>) < (variant<T...>::argSize))
+		size_t
+		operator()(V const& v) const {
+		return hash<std::remove_cvref_t<V>>()(v);
 	}
 };
 template<typename... T>
 struct compare<variant<T...>> {
-	using Type = variant<T...>;
 	int32 operator()(variant<T...> const& a, variant<T...> const& b) const {
 		if (a.GetType() == b.GetType()) {
 			return a.visit_or(
 				int32(0),
-				[&]<typename TT>(TT const& v) {
-					return compare<TT>()(v, *reinterpret_cast<TT const*>(b.GetPlaceHolder()));
+				[&](auto&& v) {
+					using TT = decltype(v);
+					using PureT = std::remove_cvref_t<TT>;
+					const compare<PureT> comp;
+					return comp(v, b.template force_get<PureT>());
 				});
 		} else
 			return (a.GetType() > b.GetType()) ? 1 : -1;
 	}
-	template<typename A>
-	requires((Type::IndexOf<A>) < Type::argSize)
+	template<typename V>
+	requires((variant<T...>::IndexOf<V>) < (variant<T...>::argSize))
 		int32
-		operator()(variant<T...> const& a, A const& value) const {
-		constexpr size_t tarIdx = Type::IndexOf<A>;
-		if (a.GetType() == tarIdx) {
-			return compare<A>()(*reinterpret_cast<A const*>(a.GetPlaceHolder()), value);
-		} else {
-			return (a.GetType() > tarIdx) ? 1 : -1;
-		}
+		operator()(variant<T...> const& a, V const& v) {
+		constexpr size_t idx = variant<T...>::IndexOf<V>;
+		if (a.GetType() == idx) {
+			return compare<V>()(a.template get<idx>(), v);
+		} else
+			return (a.GetType() > idx) ? 1 : -1;
 	}
 };
-template <typename T, typename... Args>
-requires (!std::is_const_v<T> && std::is_constructible_v<T, Args&&...>)
-void reset(T& v, Args&&... args){
+template<typename T, typename... Args>
+requires(!std::is_const_v<T> && std::is_constructible_v<T, Args&&...>) void reset(T& v, Args&&... args) {
 	v.~T();
-	new(&v)T(std::forward<Args>(args)...);
+	new (&v) T(std::forward<Args>(args)...);
 }
 }// namespace vstd
