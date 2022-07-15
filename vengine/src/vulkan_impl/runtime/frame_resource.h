@@ -44,7 +44,7 @@ class FrameResource : public Resource {
 	Map<Buffer, Texture, VkBufferImageCopy> bufImgCopyCmds;
 	Map<Texture, Buffer, VkBufferImageCopy> imgBufCopyCmds;
 	// Sync
-	vstd::vector<vstd::move_only_func<void()>> disposeFuncs;
+	vstd::vector<vstd::function<void()>> disposeFuncs;
 	vstd::vector<vstd::unique_ptr<Buffer>> scratchBuffers;
 	vstd::vector<size_t> scratchBufferViews;
 	size_t* bfViewBegin = nullptr;
@@ -65,7 +65,7 @@ public:
 	void ExecuteScratchAlloc(ResStateTracker& stateTracker);
 	void Wait();
 	void Reset();
-	void AddDisposeEvent(vstd::move_only_func<void()>&& disposeFunc);
+	void AddDisposeEvent(vstd::function<void()>&& disposeFunc);
 	void AddCopyCmd(
 		Buffer const* src,
 		uint64 srcOffset,
@@ -75,7 +75,7 @@ public:
 	void AddCopyCmd(
 		Buffer const* src,
 		Buffer const* dst,
-		vstd::move_only_func<vstd::optional<VkBufferCopy>()> const& iterateFunc,
+		vstd::function<vstd::optional<VkBufferCopy>()> const& iterateFunc,
 		size_t reserveSize = 0);
 	void AddCopyCmd(
 		Texture const* src,
@@ -85,7 +85,7 @@ public:
 	void AddCopyCmd(
 		Texture const* src,
 		Texture const* dst,
-		vstd::move_only_func<vstd::optional<VkImageCopy>()> const& iterateFunc,
+		vstd::function<vstd::optional<VkImageCopy>()> const& iterateFunc,
 		size_t reserveSize = 0);
 	void AddCopyCmd(
 		Buffer const* src,
@@ -95,7 +95,7 @@ public:
 	void AddCopyCmd(
 		Buffer const* src,
 		Texture const* dst,
-		vstd::move_only_func<vstd::optional<VkBufferImageCopy>()> const& iterateFunc,
+		vstd::function<vstd::optional<VkBufferImageCopy>()> const& iterateFunc,
 		size_t reserveSize = 0);
 	void AddCopyCmd(
 		Texture const* src,
@@ -106,7 +106,7 @@ public:
 	void AddCopyCmd(
 		Texture const* src,
 		Buffer const* dst,
-		vstd::move_only_func<vstd::optional<VkBufferImageCopy>()> const& iterateFunc,
+		vstd::function<vstd::optional<VkBufferImageCopy>()> const& iterateFunc,
 		size_t reserveSize = 0);
 
 	BufferView AllocateUpload(

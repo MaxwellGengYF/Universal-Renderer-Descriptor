@@ -16,35 +16,21 @@ struct TreeElement {
 	K first;
 	V second;
 	template<typename A, typename... B>
-	TreeElement(A&& a, B&&... b)
+	requires(std::is_constructible_v<K, A&&>&& std::is_constructible_v<V, B&&...>) explicit TreeElement(A&& a, B&&... b)
 		: first(std::forward<A>(a)),
 		  second(std::forward<B>(b)...) {
 	}
-};
-template<typename K, typename V>
-struct ConstTreeElement {
-	const K first;
-	V second;
-	template<typename A, typename... B>
-	ConstTreeElement(A&& a, B&&... b)
-		: first(std::forward<A>(a)),
-		  second(std::forward<B>(b)...) {
-	}
+	TreeElement(TreeElement const&) = default;
+	TreeElement(TreeElement&&) = default;
 };
 template<typename K>
 struct TreeElement<K, void> {
 	K first;
 	template<typename A>
-	TreeElement(A&& a)
+	requires(std::is_constructible_v<K, A&&>) explicit TreeElement(A&& a)
 		: first(std::forward<A>(a)) {
 	}
-};
-template<typename K>
-struct ConstTreeElement<K, void> {
-	const K first;
-	template<typename A>
-	ConstTreeElement(A&& a)
-		: first(std::forward<A>(a)) {
-	}
+	TreeElement(TreeElement const&) = default;
+	TreeElement(TreeElement&&) = default;
 };
 }// namespace vstd

@@ -602,7 +602,7 @@ public:
 	void operator++(int32) {
 		ptr->operator++();
 	}
-	bool operator==(IteEndTag tag) {
+	bool operator==(IteEndTag tag) const{
 		return ptr->operator==(tag);
 	}
 };
@@ -624,6 +624,10 @@ struct IteWrapper {
 	}
 	IteEndTag end() const { return {}; }
 };
+template <typename T>
+IteWrapper<T> MakeIteWrapper(T&& t){
+	return IteWrapper<T>(std::forward<T>(t));
+}
 
 template<typename T>
 class Iterator {

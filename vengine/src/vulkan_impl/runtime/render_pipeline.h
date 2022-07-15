@@ -9,7 +9,7 @@ class RenderPipeline : public Resource {
 	RenderPipeline(RenderPipeline&&) = delete;
 	vstd::LockFreeArrayQueue<vstd::variant<
 		size_t,
-		vstd::move_only_func<void()>,
+		vstd::function<void()>,
 		std::pair<Event*, size_t>>>
 		executingList;
 	std::mutex callbackMtx;
@@ -49,7 +49,7 @@ public:
 	void Complete();
 	void ForceSyncInRendering();
 	void AddEvtSync(Event* evt);
-	void AddCallback(vstd::move_only_func<void()>&& func);
+	void AddCallback(vstd::function<void()>&& func);
 	template<typename... Args>
 	void AddTask(Args&&... args);
 };

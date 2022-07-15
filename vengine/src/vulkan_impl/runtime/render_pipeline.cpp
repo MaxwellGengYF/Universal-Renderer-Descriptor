@@ -38,7 +38,7 @@ void RenderPipeline::CallbackThreadMain() {
 						locker.cv.notify_all();
 					}
 				},
-				[&](vstd::move_only_func<void()>& func) {
+				[&](vstd::function<void()>& func) {
 					func();
 				},
 				[&](std::pair<Event*, size_t>& v) {
@@ -102,7 +102,7 @@ void RenderPipeline::AddEvtSync(Event* evt) {
 	auto count = ++evt->signalFrame;
 	AddTask(evt, count);
 }
-void RenderPipeline::AddCallback(vstd::move_only_func<void()>&& func) {
+void RenderPipeline::AddCallback(vstd::function<void()>&& func) {
 	AddTask(std::move(func));
 }
 }// namespace toolhub::vk

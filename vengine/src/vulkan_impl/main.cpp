@@ -22,7 +22,7 @@ void TestRayQuery(Device const* device, vstd::span<vbyte const> block);
 void CompileAndTest(
 	Device const* device,
 	vstd::string const& shaderName,
-	vstd::move_only_func<void(Device const* device, vstd::span<vbyte const> block)> const& func) {
+	vstd::function<void(Device const* device, vstd::span<vbyte const> block)> const& func) {
 	vstd::string shaderCode;
 	{
 		BinaryReader reader(shaderName);

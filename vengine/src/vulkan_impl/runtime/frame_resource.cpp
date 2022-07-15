@@ -250,7 +250,7 @@ void FrameResource::AddCopyCmd(
 void FrameResource::AddCopyCmd(
 	Buffer const* src,
 	Buffer const* dst,
-	vstd::move_only_func<vstd::optional<VkBufferCopy>()> const& iterateFunc,
+	vstd::function<vstd::optional<VkBufferCopy>()> const& iterateFunc,
 	size_t reserveSize) {
 	auto ite = bufferCopyCmds.Emplace(
 		CopyKey<Buffer, Buffer>{src, dst},
@@ -264,7 +264,7 @@ void FrameResource::AddCopyCmd(
 void FrameResource::AddCopyCmd(
 	Texture const* src,
 	Texture const* dst,
-	vstd::move_only_func<vstd::optional<VkImageCopy>()> const& iterateFunc,
+	vstd::function<vstd::optional<VkImageCopy>()> const& iterateFunc,
 	size_t reserveSize) {
 	auto ite = imgCopyCmds.Emplace(
 		CopyKey<Texture, Texture>{src, dst},
@@ -278,7 +278,7 @@ void FrameResource::AddCopyCmd(
 void FrameResource::AddCopyCmd(
 	Buffer const* src,
 	Texture const* dst,
-	vstd::move_only_func<vstd::optional<VkBufferImageCopy>()> const& iterateFunc,
+	vstd::function<vstd::optional<VkBufferImageCopy>()> const& iterateFunc,
 	size_t reserveSize) {
 	auto ite = bufImgCopyCmds.Emplace(
 		CopyKey<Buffer, Texture>{src, dst},
@@ -292,7 +292,7 @@ void FrameResource::AddCopyCmd(
 void FrameResource::AddCopyCmd(
 	Texture const* src,
 	Buffer const* dst,
-	vstd::move_only_func<vstd::optional<VkBufferImageCopy>()> const& iterateFunc,
+	vstd::function<vstd::optional<VkBufferImageCopy>()> const& iterateFunc,
 	size_t reserveSize) {
 	auto ite = imgBufCopyCmds.Emplace(
 		CopyKey<Texture, Buffer>{src, dst},
@@ -366,7 +366,7 @@ void FrameResource::AddCopyCmd(
 	auto sz = src->Size();
 	v.imageExtent = {sz.x, sz.y, sz.z};
 }
-void FrameResource::AddDisposeEvent(vstd::move_only_func<void()>&& disposeFunc) {
+void FrameResource::AddDisposeEvent(vstd::function<void()>&& disposeFunc) {
 	disposeFuncs.emplace_back(std::move(disposeFunc));
 }
 void FrameResource::ResetScratch() {

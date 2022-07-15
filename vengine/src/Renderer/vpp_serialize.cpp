@@ -61,13 +61,18 @@ void VTable::Init() {
 	SET_CPP_FUNC_PTR(table, GetNewUID);
 	SET_CPP_FUNC_PTR(table, OnEnable);
 	SET_CPP_FUNC_PTR(table, ReadMeshFile);
+	SET_CPP_FUNC_PTR(table, CullMeshFile);
 	SET_VPP_FUNCPTR(gRuntime, BatchMesh);
 	SET_VPP_FUNCPTR(gRuntime, ReadMesh);
+	SET_VPP_FUNCPTR(gRuntime, SerBatchFile);
+	SET_VPP_FUNCPTR(gRuntime, DeserBatchFile);
 }
 void VTable::OnEnable(void*) {
 	SetFilePath(GetSingleMeshPath, singleFilePath);
 	SetFilePath(GetBatchMeshFilePath, batchFilePath);
-	SetFilePath(GetBatchFileName, batchFileName);
+	PathSpan path;
+	GetBatchFileName(&path);
+	batchFileName = vstd::string_view(path.str, path.strLen);
 }
 void VTable::SaveMesh(void* arg) {
 	auto&& a = *reinterpret_cast<SaveMeshArg*>(arg);
@@ -151,28 +156,24 @@ void VTable::CullMeshFile(void* aptr) {
 	for (auto&& i : vstd::ptr_range(a.guid, a.guidCount)) {
 		map.Emplace(i);
 	}
-	vstd::HashMap<vstd::Guid, vstd::string> guids;
+	auto DeleteFile = [&](vstd::string const& path) {
+		remove(path.c_str());
+	};
+	vstd::vector<std::pair<vstd::Guid, vstd::string>> guids;
 	for (auto const& dir_entry : std::filesystem::directory_iterator{singleFilePath.c_str()}) {
 		vstd::string filePath(dir_entry.path().string().c_str());
 		auto num = ParseGuidFromPath(filePath);
 		if (!num) {
+			DeleteFile(filePath);
 			continue;
 		}
-		guids.Emplace(*num, std::move(filePath));
+		guids.emplace_back(*num, std::move(filePath));
 	}
-	auto ite = guids.begin();
-	using Value = std::pair<vstd::Guid, vstd::string_view>;
-
-	auto GetNextFile = [&] -> vstd::optional<Value> {
-		if (ite == guids.end()) return {};
-		auto disp = vstd::create_disposer([&] { ++ite; });
-		return {ite->first, ite->second};
-	};
-	auto GuidInMap = [&](Value const& guid) -> bool {
+	auto GuidInMap = [&](auto const& guid) -> bool {
 		return !map.Find(guid.first);
 	};
-	using FilterRange = vstd::FilterRange<Value, decltype(GetNextFile), decltype(GuidInMap)>;
-	for (auto&& uselessFile : vstd::IteWrapper<FilterRange>(std::move(GetNextFile), std::move(GuidInMap))) {
+	for (auto&& uselessFile : vstd::MakeFilterRange(vstd::MakeCacheEndRange(guids), GuidInMap)) {
+		DeleteFile(uselessFile.second);
 	}
 }
 void Runtime::BatchMesh(void*) {
@@ -210,7 +211,7 @@ void Runtime::ReadMesh(void* readMesh) {
 void Runtime::SerBatchFile(void*) {
 	vstd::string path;
 	path << batchFilePath << batchFileName;
-	std::filesystem::create_directory(batchFileName.c_str());
+	std::filesystem::create_directory(batchFilePath.c_str());
 	auto f = fopen(path.c_str(), "wb");
 	if (!f) return;
 	auto disp = vstd::create_disposer([&] {
@@ -251,7 +252,19 @@ VENGINE_UNITY_EXTERN void vppInit(unity::FuncTable* funcTable) {
 	VTable::Init();
 }
 }// namespace toolhub::vpp
+#ifdef DEBUG
 int main() {
+	vstd::vector<uint> vec;
+	vec.push_back_func(10, [&](size_t i) { return i; });
+	auto wrapper = vstd::MakeValueRange(vstd::MakeFilterRange(vstd::MakeCacheEndRange(vec), [&](auto i) {
+		return i & 1;
+	}));
+	auto dyna = vstd::IRangeImpl(wrapper.begin());
+	vstd::IRange<uint>* ptr = &dyna;
+	for (auto i : vstd::MakeIteWrapper(ptr)) {
+		std::cout << i << '\n';
+	}
 	return 0;
 }
+#endif
 #undef SET_VPP_FUNCPTR

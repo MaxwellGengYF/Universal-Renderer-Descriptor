@@ -25,7 +25,7 @@ class SmallTreeMap {
 
 public:
 	using Element = TreeElement<K, V>;
-	using ConstElement = ConstTreeElement<K, V>;
+	using ConstElement = TreeElement<K const, V>;
 	// data structure that represents a node in the tree
 	struct Node {
 		bool color;	 // 1 -> Red, 0 -> Black
