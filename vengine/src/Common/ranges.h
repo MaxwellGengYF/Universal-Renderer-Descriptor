@@ -1,7 +1,26 @@
 #pragma once
 #include "MetaLib.h"
 namespace vstd {
+template<typename T>
+class IteRef {
+	T* ptr;
 
+public:
+	IteRef(T* ptr) : ptr(ptr) {}
+	decltype(auto) operator*() const {
+		return ptr->operator*();
+	}
+	void operator++() {
+		ptr->operator++();
+	}
+	void operator++(int32) {
+		ptr->operator++();
+	}
+	bool operator==(IteEndTag tag) const {
+		return ptr->operator==(tag);
+	}
+	bool operator!=(IteEndTag tag) const { return !operator==(tag); }
+};
 namespace detail {
 template<typename T>
 concept EndlessIterable = requires(T&& t) {
@@ -15,110 +34,147 @@ concept Iterable = requires(T&& t) {
 };
 template<typename T>
 using IteValueType = decltype(*std::declval<T>());
+template<typename Ite, typename Builder>
+class Combiner {
+	Ite ite;
+	Builder builder;
+
+public:
+	Combiner(Ite&& ite, Builder&& builder)
+		: ite(std::forward<Ite>(ite)), builder(std::forward<Builder>(builder)) {}
+	IteRef<Combiner> begin() {
+		builder.begin(ite);
+		return {this};
+	}
+	vstd::IteEndTag end() const { return {}; }
+	void operator++() {
+		builder.next(ite);
+	}
+	decltype(auto) operator*() {
+		return builder.value(ite);
+	}
+	bool operator==(vstd::IteEndTag) const {
+		return builder.is_end(ite);
+	}
+	bool operator!=(IteEndTag tag) const { return !operator==(tag); }
+};
+template<typename Dst>
+class BuilderBase {
+public:
+	template<typename Ite>
+	friend decltype(auto) operator>>(Ite&& ite, Dst&& dst) {
+		return Combiner<Ite, Dst>(std::forward<Ite>(ite), std::forward<Dst>(dst));
+	}
+};
 }// namespace detail
 
 template<typename T>
 class IRange {
 public:
 	virtual ~IRange() = default;
+	virtual IteRef<IRange> begin() = 0;
 	virtual bool operator==(IteEndTag) const = 0;
-	virtual bool operator!=(IteEndTag) const = 0;
 	virtual void operator++() = 0;
 	virtual T operator*() = 0;
+	vstd::IteEndTag end() const { return {}; }
 };
 template<typename Ite>
 class IRangeImpl : public IRange<decltype(*std::declval<Ite>())> {
-public:
 	using Value = decltype(*std::declval<Ite>());
 	Ite ptr;
-	IRangeImpl(Ite&& ptr) : ptr(ptr) {}
+
+public:
+	IRangeImpl(Ite&& ptr) : ptr(std::forward<Ite>(ptr)) {}
+	IteRef<IRange<Value>> begin() override {
+		ptr.begin();
+		return {this};
+	}
 	bool operator==(IteEndTag t) const override { return ptr == t; }
-	bool operator!=(IteEndTag t) const override { return !(ptr == t); }
 	void operator++() override {
 		++ptr;
 	}
 	Value operator*() override {
 		return *ptr;
 	}
+	IRangeImpl(IRangeImpl const&) = delete;
+	IRangeImpl(IRangeImpl&&) = default;
 };
-template<detail::EndlessIterable Map>
-class ValueRange {
+class ValueRange : public detail::BuilderBase<ValueRange> {
 public:
-	using IteBegin = decltype(std::declval<Map>().begin());
-
-protected:
-	IteBegin ite;
-	using Value = std::remove_reference_t<decltype(*ite)>;
-
-public:
-	ValueRange(Map&& map)
-		: ite(map.begin()) {
-	}
-	bool operator==(IteEndTag t) const {
-		return ite == t;
-	}
-	void operator++() {
-		++ite;
-	}
-	Value operator*() {
-		return *ite;
-	}
+	template<typename Ite>
+	void begin(Ite&& ite) { ite.begin(); }
+	template<typename Ite>
+	bool is_end(Ite&& ite) const { return ite == vstd::IteEndTag{}; }
+	template<typename Ite>
+	void next(Ite&& ite) { ++ite; }
+	template<typename Ite>
+	auto value(Ite&& ite) { return *ite; }
+	ValueRange(ValueRange const&) = delete;
+	ValueRange(ValueRange&&) = default;
 };
-template<detail::EndlessIterable Map, typename FilterFunc>
-class FilterRange {
-public:
-	using IteBegin = decltype(std::declval<Map>().begin());
-
+template<typename FilterFunc>
+class FilterRange : public detail::BuilderBase<FilterRange<FilterFunc>> {
 private:
-	IteBegin ite;
-	using Value = std::remove_reference_t<decltype(*ite)>;
-	optional<Value> next;
 	FilterFunc func;
-	void GetNext() {
+	template<typename Ite>
+	void GetNext(Ite& ite) {
 		while (ite != IteEndTag{}) {
 			auto disp = create_disposer([&] { ++ite; });
 			if (func(*ite)) {
-				next = *ite;
 				return;
 			}
 		}
-		next.Delete();
 	}
 
 public:
-	FilterRange(Map&& map, FilterFunc&& func)
-		: ite(map.begin()), func(std::forward<FilterFunc>(func)) {
-		GetNext();
+	template<typename Ite>
+	void begin(Ite&& ite) {
+		ite.begin();
+		GetNext(ite);
 	}
-	bool operator==(IteEndTag) const {
-		return !next;
+	template<typename Ite>
+	bool is_end(Ite&& ite) const {
+		return ite == vstd::IteEndTag{};
 	}
-	void operator++() {
-		GetNext();
+	template<typename Ite>
+	void next(Ite&& ite) {
+		GetNext(ite);
 	}
-	Value& operator*() {
-		return *next;
+	template<typename Ite>
+	decltype(auto) value(Ite&& ite) {
+		return *ite;
 	}
+	FilterRange(FilterFunc&& func)
+		: func(std::forward<FilterFunc>(func)) {
+	}
+	FilterRange(FilterRange const&) = delete;
+	FilterRange(FilterRange&&) = default;
 };
-template<detail::EndlessIterable Map, typename GetValue>
-class GetValueRange {
-public:
-	using IteBegin = decltype(std::declval<Map>().begin());
-
-private:
-	IteBegin ite;
+template<typename GetValue>
+class TransformRange : public detail::BuilderBase<TransformRange<GetValue>> {
 	GetValue getValue;
 
 public:
-	GetValueRange(Map&& map, GetValue&& getValueFunc)
-		: ite(map.begin()), getValue(std::forward<GetValue>(getValueFunc)) {}
-	bool operator==(IteEndTag v) const {
-		return ite == v;
+	template<typename Ite>
+	void begin(Ite&& ite) {
+		ite.begin();
 	}
-	void operator++() { ++ite; }
-	decltype(auto) operator*() {
+	TransformRange(GetValue&& getValueFunc)
+		: getValue(std::forward<GetValue>(getValueFunc)) {}
+	template<typename Ite>
+	bool is_end(Ite&& ite) const {
+		return ite == vstd::IteEndTag{};
+	}
+	template<typename Ite>
+	void next(Ite&& ite) {
+		++ite;
+	}
+	template<typename Ite>
+	decltype(auto) value(Ite&& ite) {
 		return getValue(*ite);
 	}
+	TransformRange(TransformRange const&) = delete;
+	TransformRange(TransformRange&&) = default;
 };
 template<detail::Iterable Map>
 class CacheEndRange {
@@ -127,44 +183,43 @@ public:
 	using IteEnd = decltype(std::declval<Map>().begin());
 
 private:
-	IteBegin ite;
-	IteEnd end;
+	Map map;
+	vstd::optional<IteBegin> ite;
 
 public:
 	CacheEndRange(Map&& map)
-		: ite(map.begin()), end(map.end()) {
+		: map(std::forward<Map>(map)) {
+	}
+	IteRef<CacheEndRange> begin() {
+		ite = map.begin();
+		return {this};
 	}
 	bool operator==(IteEndTag) const {
-		return ite == end;
+		return (*ite) == map.end();
 	}
-	void operator++() { ++ite; }
+	void operator++() { ++(*ite); }
 	decltype(auto) operator*() {
-		return *ite;
+		return **ite;
 	}
+	vstd::IteEndTag end() const { return {}; }
+	CacheEndRange(CacheEndRange const&) = delete;
+	CacheEndRange(CacheEndRange&&) = default;
 };
-template<detail::EndlessIterable Map, typename Func>
-requires(std::is_invocable_r_v<bool, Func, decltype(*std::declval<Map>().begin())>)
-
-	decltype(auto) MakeFilterRange(Map&& map, Func&& func) {
-	using BeginType = decltype(map.begin());
-	return IteWrapper<FilterRange<Map, Func>>(
-		std::forward<Map>(map),
-		std::forward<Func>(func));
+template<typename Func>
+decltype(auto) MakeFilterRange(Func&& func) {
+	return FilterRange<Func>(std::forward<Func>(func));
 }
-template<detail::EndlessIterable Map, typename GetValue>
-requires(std::is_invocable_v<GetValue, decltype(*std::declval<Map>().begin())>)
-
-	decltype(auto) MakeGetValueRange(Map&& map, GetValue&& func) {
-	return IteWrapper<GetValueRange<Map, GetValue>>(
-		std::forward<Map>(map),
+template<typename GetValue>
+decltype(auto) MakeTransformRange(GetValue&& func) {
+	return TransformRange<GetValue>(
 		std::forward<GetValue>(func));
 }
 template<detail::Iterable Map>
 decltype(auto) MakeCacheEndRange(Map&& map) {
-	return IteWrapper<CacheEndRange<Map>>(std::forward<Map>(map));
+	return CacheEndRange<Map>(std::forward<Map>(map));
 }
 template<detail::EndlessIterable Map>
-decltype(auto) MakeValueRange(Map&& map){
-	return IteWrapper<ValueRange<Map>>(std::forward<Map>(map));
+decltype(auto) MakeIRangeImpl(Map&& map) {
+	return IRangeImpl<Map>(std::forward<Map>(map));
 }
 }// namespace vstd

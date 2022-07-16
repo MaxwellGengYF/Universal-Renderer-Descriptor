@@ -586,48 +586,6 @@ public:
 	virtual ~IEnumerable() {}
 };
 struct IteEndTag {};
-namespace detail {
-template<typename T>
-class IteRef {
-	T ptr;
-
-public:
-	IteRef(T ptr) : ptr(ptr) {}
-	decltype(auto) operator*() const {
-		return ptr->operator*();
-	}
-	void operator++() {
-		ptr->operator++();
-	}
-	void operator++(int32) {
-		ptr->operator++();
-	}
-	bool operator==(IteEndTag tag) const{
-		return ptr->operator==(tag);
-	}
-};
-}// namespace detail
-template<typename T>
-struct IteWrapper {
-	T t;
-	template<typename... Args>
-	requires(std::is_constructible_v<T, Args&&...>)
-		IteWrapper(Args&&... args)
-		: t(std::forward<Args>(args)...) {}
-	decltype(auto) begin() {
-		using PureT = std::remove_reference_t<T>;
-		if constexpr (std::is_pointer_v<PureT>) {
-			return detail::IteRef<T>{t};
-		} else {
-			return detail::IteRef<T*>{&t};
-		}
-	}
-	IteEndTag end() const { return {}; }
-};
-template <typename T>
-IteWrapper<T> MakeIteWrapper(T&& t){
-	return IteWrapper<T>(std::forward<T>(t));
-}
 
 template<typename T>
 class Iterator {

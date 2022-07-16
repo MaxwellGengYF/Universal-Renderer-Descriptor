@@ -172,7 +172,7 @@ void VTable::CullMeshFile(void* aptr) {
 	auto GuidInMap = [&](auto const& guid) -> bool {
 		return !map.Find(guid.first);
 	};
-	for (auto&& uselessFile : vstd::MakeFilterRange(vstd::MakeCacheEndRange(guids), GuidInMap)) {
+	for(auto&& uselessFile : vstd::MakeCacheEndRange(guids) >> vstd::MakeFilterRange(GuidInMap)){
 		DeleteFile(uselessFile.second);
 	}
 }
@@ -253,15 +253,15 @@ VENGINE_UNITY_EXTERN void vppInit(unity::FuncTable* funcTable) {
 }
 }// namespace toolhub::vpp
 #ifdef DEBUG
+
 int main() {
-	vstd::vector<uint> vec;
-	vec.push_back_func(10, [&](size_t i) { return i; });
-	auto wrapper = vstd::MakeValueRange(vstd::MakeFilterRange(vstd::MakeCacheEndRange(vec), [&](auto i) {
-		return i & 1;
-	}));
-	auto dyna = vstd::IRangeImpl(wrapper.begin());
-	vstd::IRange<uint>* ptr = &dyna;
-	for (auto i : vstd::MakeIteWrapper(ptr)) {
+	auto intToFloat = [](int a) -> float { return a + 0.5f; };
+	vstd::vector<int> vec;
+	vec.push_back_func(10, [](size_t i) { return i; });
+	auto cacheEnd = vstd::MakeCacheEndRange(vec);
+	auto transform = cacheEnd >> vstd::TransformRange<decltype(intToFloat)>(std::move(intToFloat));
+	auto filter = transform >> vstd::MakeFilterRange([](float v) { return v < 5; });
+	for (auto&& i : filter) {
 		std::cout << i << '\n';
 	}
 	return 0;
