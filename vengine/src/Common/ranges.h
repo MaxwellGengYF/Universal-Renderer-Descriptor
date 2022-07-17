@@ -23,18 +23,35 @@ public:
 };
 namespace detail {
 template<typename T>
-concept EndlessIterable = requires(T&& t) {
-	t.begin();
+concept EndlessIterable = requires(T&& t, vstd::IteEndTag endTag) {
+	std::is_same_v<IteRef<T>, decltype(t.begin())>;
+	t.operator*();
+	t.operator++();
+	std::is_same_v<bool, decltype(t.operator==(endTag))>;
 	std::is_same_v<decltype(t.end()), IteEndTag>;
+};
+template<typename T, typename End>
+concept RegularIterable = requires(T&& t, End endTag) {
+	t.operator*();
+	t.operator++();
+	std::is_same_v<bool, decltype(t.operator==(endTag))>;
 };
 template<typename T>
 concept Iterable = requires(T&& t) {
-	t.begin();
-	t.end();
+	RegularIterable<decltype(t.begin()), decltype(t.end())>;
 };
-template<typename T>
-using IteValueType = decltype(*std::declval<T>());
-template<typename Ite, typename Builder>
+template<typename T, typename Ite>
+concept BuilderType = requires(T t, Ite ite) {
+	t.begin(ite);
+	t.next(ite);
+	std::is_same_v<bool, decltype(t.is_end(ite))>;
+	t.value(ite);
+};
+template<typename Begin, typename End, typename Map>
+concept BeginEndFunc = requires(Begin&& beginFunc, End&& endFunc, Map map) {
+	RegularIterable<decltype(beginFunc(map)), decltype(endFunc(map))>;
+};
+template<EndlessIterable Ite, BuilderType<Ite&&> Builder>
 class Combiner {
 	Ite ite;
 	Builder builder;
@@ -61,7 +78,7 @@ public:
 template<typename Dst>
 class BuilderBase {
 public:
-	template<typename Ite>
+	template<EndlessIterable Ite>
 	friend decltype(auto) operator>>(Ite&& ite, Dst&& dst) {
 		return Combiner<Ite, Dst>(std::forward<Ite>(ite), std::forward<Dst>(dst));
 	}
@@ -78,7 +95,7 @@ public:
 	virtual T operator*() = 0;
 	vstd::IteEndTag end() const { return {}; }
 };
-template<typename Ite>
+template<detail::EndlessIterable Ite>
 class IRangeImpl : public IRange<decltype(*std::declval<Ite>())> {
 	using Value = decltype(*std::declval<Ite>());
 	Ite ptr;
@@ -119,10 +136,10 @@ private:
 	template<typename Ite>
 	void GetNext(Ite& ite) {
 		while (ite != IteEndTag{}) {
-			auto disp = create_disposer([&] { ++ite; });
 			if (func(*ite)) {
 				return;
 			}
+			++ite;
 		}
 	}
 
@@ -138,6 +155,7 @@ public:
 	}
 	template<typename Ite>
 	void next(Ite&& ite) {
+		++ite;
 		GetNext(ite);
 	}
 	template<typename Ite>
@@ -205,6 +223,42 @@ public:
 	CacheEndRange(CacheEndRange const&) = delete;
 	CacheEndRange(CacheEndRange&&) = default;
 };
+template<typename BeginFunc, typename EndFunc, typename Map>
+class CustomRange {
+public:
+	using IteBegin = decltype(std::declval<BeginFunc>()(std::declval<Map>()));
+	using IteEnd = decltype(std::declval<EndFunc>()(std::declval<Map>()));
+
+private:
+	Map map;
+	BeginFunc beginFunc;
+	EndFunc endFunc;
+	vstd::optional<IteBegin> ite;
+
+public:
+	CustomRange(
+		Map&& map,
+		BeginFunc&& beginFunc,
+		EndFunc&& endFunc)
+		: map(std::forward<Map>(map)),
+		  beginFunc(std::forward<BeginFunc>(beginFunc)),
+		  endFunc(std::forward<EndFunc>(endFunc)) {
+	}
+	IteRef<CustomRange> begin() {
+		ite = beginFunc(map);
+		return {this};
+	}
+	bool operator==(IteEndTag) const {
+		return (*ite) == endFunc(map);
+	}
+	void operator++() { ++(*ite); }
+	decltype(auto) operator*() {
+		return **ite;
+	}
+	vstd::IteEndTag end() const { return {}; }
+	CustomRange(CustomRange const&) = delete;
+	CustomRange(CustomRange&&) = default;
+};
 template<typename Func>
 decltype(auto) MakeFilterRange(Func&& func) {
 	return FilterRange<Func>(std::forward<Func>(func));
@@ -217,6 +271,15 @@ decltype(auto) MakeTransformRange(GetValue&& func) {
 template<detail::Iterable Map>
 decltype(auto) MakeCacheEndRange(Map&& map) {
 	return CacheEndRange<Map>(std::forward<Map>(map));
+}
+template<typename BeginFunc, typename EndFunc, typename Map>
+requires(detail::BeginEndFunc<BeginFunc, EndFunc, Map>)
+
+	decltype(auto) MakeCustomRange(
+		Map&& map,
+		BeginFunc&& beginFunc,
+		EndFunc&& endFunc) {
+	return CustomRange<BeginFunc, EndFunc, Map>(std::forward<Map>(map), std::forward<BeginFunc>(beginFunc), std::forward<EndFunc>(endFunc));
 }
 template<detail::EndlessIterable Map>
 decltype(auto) MakeIRangeImpl(Map&& map) {

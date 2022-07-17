@@ -159,21 +159,22 @@ void VTable::CullMeshFile(void* aptr) {
 	auto DeleteFile = [&](vstd::string const& path) {
 		remove(path.c_str());
 	};
-	vstd::vector<std::pair<vstd::Guid, vstd::string>> guids;
-	for (auto const& dir_entry : std::filesystem::directory_iterator{singleFilePath.c_str()}) {
-		vstd::string filePath(dir_entry.path().string().c_str());
-		auto num = ParseGuidFromPath(filePath);
-		if (!num) {
-			DeleteFile(filePath);
-			continue;
-		}
-		guids.emplace_back(*num, std::move(filePath));
-	}
-	auto GuidInMap = [&](auto const& guid) -> bool {
-		return !map.Find(guid.first);
-	};
-	for(auto&& uselessFile : vstd::MakeCacheEndRange(guids) >> vstd::MakeFilterRange(GuidInMap)){
-		DeleteFile(uselessFile.second);
+	auto ite =
+		vstd::MakeCustomRange(
+			std::filesystem::directory_iterator{singleFilePath.c_str()},
+			[](auto&& beg) { return std::filesystem::begin(beg); },
+			[](auto&& end) { return std::filesystem::end(end); })
+		>> vstd::MakeTransformRange(
+			[&](auto const& dir) {
+				vstd::string filePath(dir.path().string().c_str());
+				auto num = ParseGuidFromPath(filePath);
+				return std::pair<decltype(num), vstd::string>{num, std::move(filePath)};
+			})
+		>> vstd::MakeFilterRange([&](auto&& guidPath) {
+			  return !(guidPath.first.has_value() && !map.Find(*guidPath.first));
+		  });
+	for (auto&& i : ite) {
+		DeleteFile(i.second);
 	}
 }
 void Runtime::BatchMesh(void*) {
@@ -253,14 +254,14 @@ VENGINE_UNITY_EXTERN void vppInit(unity::FuncTable* funcTable) {
 }
 }// namespace toolhub::vpp
 #ifdef DEBUG
-
 int main() {
 	auto intToFloat = [](int a) -> float { return a + 0.5f; };
 	vstd::vector<int> vec;
 	vec.push_back_func(10, [](size_t i) { return i; });
-	auto cacheEnd = vstd::MakeCacheEndRange(vec);
+	auto cacheEnd = vstd::MakeCustomRange(
+		vec, [](auto&& a) { return a.begin(); }, [](auto&& b) { return b.end(); });
 	auto transform = cacheEnd >> vstd::TransformRange<decltype(intToFloat)>(std::move(intToFloat));
-	auto filter = transform >> vstd::MakeFilterRange([](float v) { return v < 5; });
+	auto filter = transform >> vstd::MakeFilterRange([](float v) { return (v < 5 || v > 7) && v < 9; });
 	for (auto&& i : filter) {
 		std::cout << i << '\n';
 	}
