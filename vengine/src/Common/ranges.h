@@ -273,12 +273,11 @@ decltype(auto) MakeCacheEndRange(Map&& map) {
 	return CacheEndRange<Map>(std::forward<Map>(map));
 }
 template<typename BeginFunc, typename EndFunc, typename Map>
-requires(detail::BeginEndFunc<BeginFunc, EndFunc, Map>)
-
-	decltype(auto) MakeCustomRange(
-		Map&& map,
-		BeginFunc&& beginFunc,
-		EndFunc&& endFunc) {
+	requires(detail::BeginEndFunc<BeginFunc, EndFunc, Map>)
+decltype(auto) MakeCustomRange(
+	Map&& map,
+	BeginFunc&& beginFunc,
+	EndFunc&& endFunc) {
 	return CustomRange<BeginFunc, EndFunc, Map>(std::forward<Map>(map), std::forward<BeginFunc>(beginFunc), std::forward<EndFunc>(endFunc));
 }
 template<detail::EndlessIterable Map>

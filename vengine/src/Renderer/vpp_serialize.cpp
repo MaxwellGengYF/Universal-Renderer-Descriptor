@@ -163,16 +163,16 @@ void VTable::CullMeshFile(void* aptr) {
 		vstd::MakeCustomRange(
 			std::filesystem::directory_iterator{singleFilePath.c_str()},
 			[](auto&& beg) { return std::filesystem::begin(beg); },
-			[](auto&& end) { return std::filesystem::end(end); })
-		>> vstd::MakeTransformRange(
+			[](auto&& end) { return std::filesystem::end(end); }) >>
+		vstd::MakeTransformRange(
 			[&](auto const& dir) {
 				vstd::string filePath(dir.path().string().c_str());
 				auto num = ParseGuidFromPath(filePath);
 				return std::pair<decltype(num), vstd::string>{num, std::move(filePath)};
-			})
-		>> vstd::MakeFilterRange([&](auto&& guidPath) {
-			  return !(guidPath.first.has_value() && !map.Find(*guidPath.first));
-		  });
+			}) >>
+		vstd::MakeFilterRange([&](auto&& guidPath) {
+			return !(guidPath.first.has_value() && !map.Find(*guidPath.first));
+		});
 	for (auto&& i : ite) {
 		DeleteFile(i.second);
 	}
