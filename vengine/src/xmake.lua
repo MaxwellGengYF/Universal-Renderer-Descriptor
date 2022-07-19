@@ -125,7 +125,7 @@ BuildProject({
     end,
     exception = true
 })
--- STB
+--[[STB
 BuildProject({
     projectName = "stb",
     projectType = "shared",
@@ -136,7 +136,8 @@ BuildProject({
     end,
     exception = true
 })
--- TextureTools
+]]
+--[[TextureTools
 BuildProject({
     projectName = function()
         return ProjFilter("TextureTools")
@@ -149,7 +150,8 @@ BuildProject({
     end,
     exception = true
 })
--- VEngine_Graphics
+]]
+--[[VEngine_Graphics
 BuildProject({
     projectName = "VEngine_Graphics",
     projectType = "shared",
@@ -162,7 +164,8 @@ BuildProject({
     unityBuildBatch = 4,
     exception = true
 })
--- VEngine_DirectX
+]]
+--[[ VEngine_DirectX
 BuildProject({
     projectName = "VEngine_DirectX",
     projectType = "shared",
@@ -176,7 +179,8 @@ BuildProject({
     unityBuildBatch = 4,
     exception = true
 })
--- VEngine_IR
+]]
+--[[ VEngine_IR
 BuildProject({
     projectName = function()
         return ProjFilter("VEngine_IR")
@@ -190,6 +194,8 @@ BuildProject({
     unityBuildBatch = 4,
     exception = true
 })
+]]
+--[[
 -- File refresher
 BuildProject({
     projectName = function()
@@ -202,6 +208,7 @@ BuildProject({
     end,
     exception = true
 })
+]]
 -- RecreateRendering
 BuildProject({
     projectName = function()
@@ -223,7 +230,7 @@ BuildProject({
     end,
     exception = true
 })
-
+--[[
 -- VEngine_Vulkan
 BuildProject({
     projectName = function()
@@ -246,6 +253,7 @@ BuildProject({
     unityBuildBatch = 4,
     exception = true
 })
+]]
 BuildProject({
     projectName = function()
         return ProjFilter("fsr2")

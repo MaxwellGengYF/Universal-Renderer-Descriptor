@@ -5,12 +5,18 @@
 #include <Utility/BinaryReader.h>
 #include <Utility/StringUtility.h>
 #include <Common/ranges.h>
+#include <Common/tuple.h>
 namespace toolhub::vpp {
 #define SET_VPP_FUNCPTR(obj, name) table->SetCppFuncPtr(#name##_sv, [](void* arg) { obj.name(arg); })
 vstd::unique_ptr<unity::FuncTable> table;
 unity::CallbackFuncPtr VTable::GetSingleMeshPath;
 unity::CallbackFuncPtr VTable::GetBatchMeshFilePath;
 unity::CallbackFuncPtr VTable::GetBatchFileName;
+unity::CallbackFuncPtr VTable::UnityLog;
+static void Log(vstd::string const& str) {
+	std::pair<char const*, size_t> arg(str.data(), str.size());
+	VTable::UnityLog(&arg);
+}
 vstd::string singleFilePath;
 vstd::string batchFilePath;
 vstd::string batchFileName;
@@ -22,7 +28,7 @@ struct Header {
 
 struct BatchHeader {
 	size_t magicNumber;
-	size_t coloByteSize;
+	size_t colorByteSize;
 	size_t meshCount;
 };
 
@@ -42,10 +48,6 @@ static void SetFilePath(unity::CallbackFuncPtr getPath, vstd::string& filePath) 
 			filePath << '/';
 	}
 }
-void Runtime::Clear() {
-	meshes.Clear();
-	colorBuffer.clear();
-}
 void VTable::GetNewUID(void* ptr) {
 	*reinterpret_cast<vstd::Guid*>(ptr) = vstd::Guid(true);
 }
@@ -55,6 +57,7 @@ void VTable::Init() {
 	GET_CSHARP_FUNC_PTR(table, GetSingleMeshPath);
 	GET_CSHARP_FUNC_PTR(table, GetBatchMeshFilePath);
 	GET_CSHARP_FUNC_PTR(table, GetBatchFileName);
+	GET_CSHARP_FUNC_PTR(table, UnityLog);
 	SET_CPP_FUNC_PTR(table, SaveMesh);
 	SET_CPP_FUNC_PTR(table, RemoveMeshFile);
 	SET_CPP_FUNC_PTR(table, RemoveMeshFiles);
@@ -66,7 +69,12 @@ void VTable::Init() {
 	SET_VPP_FUNCPTR(gRuntime, ReadMesh);
 	SET_VPP_FUNCPTR(gRuntime, SerBatchFile);
 	SET_VPP_FUNCPTR(gRuntime, DeserBatchFile);
+	SET_VPP_FUNCPTR(gRuntime, GetVPPMemoryPtr);
+	SET_VPP_FUNCPTR(gRuntime, DeleteBatchFile);
+	SET_VPP_FUNCPTR(gRuntime, CompleteDeserBatchFile);
+	SET_VPP_FUNCPTR(gRuntime, GetDeserResult);
 }
+
 void VTable::OnEnable(void*) {
 	SetFilePath(GetSingleMeshPath, singleFilePath);
 	SetFilePath(GetBatchMeshFilePath, batchFilePath);
@@ -95,7 +103,8 @@ void VTable::SaveMesh(void* arg) {
 void VTable::RemoveMeshFile(void* arg) {
 	vstd::string filePath;
 	vstd::StringBuilder(&filePath) << singleFilePath << reinterpret_cast<vstd::Guid*>(arg)->ToString(true) << ".vpbytes"_sv;
-	remove(filePath.c_str());
+	std::error_code err;
+	std::filesystem::remove(filePath.c_str(), err);
 }
 void VTable::ReadMeshFile(void* ptr) {
 	auto& a = *reinterpret_cast<ReadMeshArg*>(ptr);
@@ -124,7 +133,8 @@ void VTable::ReadMeshFile(void* ptr) {
 	reader.Read(a.ptr, a.size);
 }
 void VTable::RemoveMeshFiles(void*) {
-	remove(singleFilePath.c_str());
+	std::error_code err;
+	std::filesystem::remove(singleFilePath.c_str(), err);
 }
 static vstd::optional<vstd::Guid> ParseGuidFromPath(vstd::string_view filePath) {
 	char const* endPtr = filePath.data() + filePath.size();
@@ -157,25 +167,30 @@ void VTable::CullMeshFile(void* aptr) {
 		map.Emplace(i);
 	}
 	auto DeleteFile = [&](vstd::string const& path) {
-		remove(path.c_str());
+		std::error_code err;
+		std::filesystem::remove(path.c_str(), err);
 	};
 	auto ite =
-		vstd::MakeCustomRange(
+		vstd::CustomRange(
 			std::filesystem::directory_iterator{singleFilePath.c_str()},
 			[](auto&& beg) { return std::filesystem::begin(beg); },
-			[](auto&& end) { return std::filesystem::end(end); }) >>
-		vstd::MakeTransformRange(
+			[](auto&& end) { return std::filesystem::end(end); }) |
+		vstd::TransformRange(
 			[&](auto const& dir) {
 				vstd::string filePath(dir.path().string().c_str());
 				auto num = ParseGuidFromPath(filePath);
 				return std::pair<decltype(num), vstd::string>{num, std::move(filePath)};
-			}) >>
-		vstd::MakeFilterRange([&](auto&& guidPath) {
+			}) |
+		vstd::FilterRange([&](auto&& guidPath) {
 			return !(guidPath.first.has_value() && !map.Find(*guidPath.first));
 		});
 	for (auto&& i : ite) {
 		DeleteFile(i.second);
 	}
+}
+void Runtime::Clear() {
+	meshes.Clear();
+	colorBuffer.clear();
 }
 void Runtime::BatchMesh(void*) {
 	meshes.Clear();
@@ -198,15 +213,15 @@ void Runtime::BatchMesh(void*) {
 	}
 }
 void Runtime::ReadMesh(void* readMesh) {
-	auto& a = *reinterpret_cast<ReadMeshArg*>(readMesh);
+	auto& a = *reinterpret_cast<ReadBatchedMeshArg*>(readMesh);
 	auto ite = meshes.Find(a.uid);
 	if (!ite) {
-		a.ptr = nullptr;
+		a.offset = 0;
 		a.size = 0;
 		return;
 	}
 	auto& v = ite.Value();
-	a.ptr = colorBuffer.data() + v.first;
+	a.offset = v.first;
 	a.size = v.second;
 }
 void Runtime::SerBatchFile(void*) {
@@ -220,33 +235,70 @@ void Runtime::SerBatchFile(void*) {
 	});
 	BatchHeader header{
 		.magicNumber = BatchMeshMagicNum,
-		.coloByteSize = colorBuffer.byte_size(),
+		.colorByteSize = colorBuffer.byte_size(),
 		.meshCount = meshes.size()};
 	fwrite(&header, sizeof(header), 1, f);
 	for (auto&& i : meshes) {
-		fwrite(&i.first, sizeof(i.first), 1, f);
-		fwrite(&i.second, sizeof(i.second), 1, f);
+		fwrite(&i.first, sizeof(vstd::Guid), 1, f);
+		fwrite(&i.second, sizeof(size_t) * 2, 1, f);
 	}
 	fwrite(colorBuffer.data(), colorBuffer.byte_size(), 1, f);
 }
 void Runtime::DeserBatchFile(void*) {
 	meshes.Clear();
 	colorBuffer.clear();
+	success = false;
+	thread.ExecuteNext();
+}
+void Runtime::DeleteBatchFile(void*) {
+	meshes.Clear();
+	colorBuffer.clear();
+	std::error_code err;
+	std::filesystem::remove(batchFilePath.c_str(), err);
+}
+
+void Runtime::GetVPPMemoryPtr(void* a) {
+	auto& arg = *reinterpret_cast<ReadDataArg*>(a);
+	arg.ptr = colorBuffer.data();
+	arg.size = colorBuffer.size();
+}
+void Runtime::operator()() {
 	vstd::string path;
 	path << batchFilePath << batchFileName;
 	BinaryReader reader(path);
-	if (!reader) return;
+	if (!reader) {
+		success = false;
+		return;
+	}
 	BatchHeader header;
 	reader.Read(&header, sizeof(BatchHeader));
-	if (header.magicNumber != BatchMeshMagicNum) return;
+	if (header.magicNumber != BatchMeshMagicNum) {
+		success = false;
+		return;
+	}
 	meshes.Reserve(header.meshCount);
 	for (auto i : vstd::range(header.meshCount)) {
-		std::tuple<vstd::Guid::GuidData, size_t, size_t> kv;
+		vstd::tuple<vstd::Guid::GuidData, size_t, size_t> kv;
 		reader.Read(&kv, sizeof(kv));
-		meshes.Emplace(std::get<0>(kv), std::get<1>(kv), std::get<2>(kv));
+		meshes.Emplace(vstd::Guid(kv.get<0>()), kv.get<1>(), kv.get<2>());
 	}
-	colorBuffer.resize(header.coloByteSize);
+	colorBuffer.resize(header.colorByteSize);
 	reader.Read(colorBuffer.data(), colorBuffer.byte_size());
+	success = true;
+}
+void Runtime::CompleteDeserBatchFile(void*) {
+	thread.Complete();
+}
+void Runtime::GetDeserResult(void* value) {
+	auto& a = *reinterpret_cast<FileLoadState*>(value);
+	if (!thread.IsCompleted()) {
+		a = FileLoadState::UnFinished;
+	} else {
+		a = success ? FileLoadState::Success : FileLoadState::Failed;
+	}
+}
+Runtime::Runtime() {
+	thread.SetFunctor(*this);
 }
 VENGINE_UNITY_EXTERN void vppInit(unity::FuncTable* funcTable) {
 	table = vstd::create_unique(funcTable);
@@ -255,14 +307,14 @@ VENGINE_UNITY_EXTERN void vppInit(unity::FuncTable* funcTable) {
 }// namespace toolhub::vpp
 #ifdef DEBUG
 int main() {
-	auto intToFloat = [](int a) -> float { return a + 0.5f; };
-	vstd::vector<int> vec;
-	vec.push_back_func(10, [](size_t i) { return i; });
-	auto cacheEnd = vstd::MakeCustomRange(
-		vec, [](auto&& a) { return a.begin(); }, [](auto&& b) { return b.end(); });
-	auto transform = cacheEnd >> vstd::TransformRange<decltype(intToFloat)>(std::move(intToFloat));
-	auto filter = transform >> vstd::MakeFilterRange([](float v) { return (v < 5 || v > 7) && v < 9; });
-	for (auto&& i : filter) {
+	auto pipeline = vstd::TransformRange([&](uint v) {
+						return v + 0.5;
+					}) |
+					vstd::FilterRange([](auto v) { return v > 3; });
+	auto v = vstd::IRangePipelineImpl<float>(std::move(pipeline));
+	auto rangeParent = vstd::IRangeImpl(vstd::range(10) | vstd::StaticCastRange<float>());
+	auto rangeValue = rangeParent | v;
+	for (auto&& i : rangeValue) {
 		std::cout << i << '\n';
 	}
 	return 0;

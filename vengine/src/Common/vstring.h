@@ -11,6 +11,7 @@
 #include <Common/Compare.h>
 #include <Common/vector.h>
 #include <Common/vstl_traits.h>
+#include <Common/ranges.h>
 ///////////// vstd::string
 VENGINE_DLL_COMMON void VEngine_Log(char const* chunk);
 
