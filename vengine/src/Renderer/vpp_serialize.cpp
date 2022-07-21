@@ -6,6 +6,7 @@
 #include <Utility/StringUtility.h>
 #include <Common/ranges.h>
 #include <Common/tuple.h>
+#include <Utility/file_range.h>
 namespace toolhub::vpp {
 #define SET_VPP_FUNCPTR(obj, name) table->SetCppFuncPtr(#name##_sv, [](void* arg) { obj.name(arg); })
 vstd::unique_ptr<unity::FuncTable> table;
@@ -171,13 +172,9 @@ void VTable::CullMeshFile(void* aptr) {
 		std::filesystem::remove(path.c_str(), err);
 	};
 	auto ite =
-		vstd::CustomRange(
-			std::filesystem::directory_iterator{singleFilePath.c_str()},
-			[](auto&& beg) { return std::filesystem::begin(beg); },
-			[](auto&& end) { return std::filesystem::end(end); }) |
+		vstd::FileRange(singleFilePath) |
 		vstd::TransformRange(
-			[&](auto const& dir) {
-				vstd::string filePath(dir.path().string().c_str());
+			[&](vstd::string const& filePath) {
 				auto num = ParseGuidFromPath(filePath);
 				return std::pair<decltype(num), vstd::string>{num, std::move(filePath)};
 			}) |
@@ -195,8 +192,7 @@ void Runtime::Clear() {
 void Runtime::BatchMesh(void*) {
 	meshes.Clear();
 	colorBuffer.clear();
-	for (auto const& dir_entry : std::filesystem::directory_iterator{singleFilePath.c_str()}) {
-		vstd::string filePath(dir_entry.path().string().c_str());
+	for (auto const& filePath : vstd::FileRange(singleFilePath)) {
 		auto num = ParseGuidFromPath(filePath);
 		if (!num) {
 			continue;
@@ -306,17 +302,8 @@ VENGINE_UNITY_EXTERN void vppInit(unity::FuncTable* funcTable) {
 }
 }// namespace toolhub::vpp
 #ifdef DEBUG
+
 int main() {
-	auto pipeline = vstd::TransformRange([&](uint v) {
-						return v + 0.5;
-					}) |
-					vstd::FilterRange([](auto v) { return v > 3; });
-	auto v = vstd::IRangePipelineImpl<float>(std::move(pipeline));
-	auto rangeParent = vstd::IRangeImpl(vstd::range(10) | vstd::StaticCastRange<float>());
-	auto rangeValue = rangeParent | v;
-	for (auto&& i : rangeValue) {
-		std::cout << i << '\n';
-	}
 	return 0;
 }
 #endif

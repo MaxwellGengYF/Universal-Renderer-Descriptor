@@ -26,7 +26,7 @@ public:
 	bool IsCompleted() const { return !mainThreadLocked; }
 	~TaskThread();
 	template<typename T>
-	requires(std::is_constructible_v<T>) void SetFunctor(T& func) {
+	void SetFunctor(T& func) {
 		using Type = typename std::remove_const_t<T>;
 		funcData = [](void* ptr) {
 			(*(T*)ptr)();

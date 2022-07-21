@@ -10,25 +10,25 @@ template<typename T>
 struct tuple<T> {
 	using value_type = T;
 	T value;
-	template<typename... Arg>
-		requires(std::is_constructible_v<T, Arg&&...>)
-	tuple(Arg&&... a)
-		: value(std::forward<Arg>(a)...) {
+	template<typename Arg>
+		requires(std::is_constructible_v<T, Arg&&>)
+	tuple(Arg&& a)
+		: value(std::forward<Arg>(a)) {
 	}
-	tuple() {}
+	tuple(){}
 	template<size_t i>
 		requires(i == 0)
-	decltype(auto) get() & {
+	auto& get() & {
 		return value;
 	}
 	template<size_t i>
 		requires(i == 0)
-	decltype(auto) get() const& {
+	auto const& get() const& {
 		return value;
 	}
 	template<size_t i>
 		requires(i == 0)
-	decltype(auto) get() && {
+	auto&& get() && {
 		return std::move(value);
 	}
 };
@@ -41,10 +41,19 @@ struct tuple<A, B, Values...> {
 		requires(std::is_constructible_v<A, Arg0&&>&& std::is_constructible_v<tuple<B, Values...>, B&&, Args&&...>)
 	tuple(Arg0&& a, Arg1&& b, Args&&... c)
 		: value(std::forward<Arg0&&>(a)), args(std::forward<Arg1>(b), std::forward<Args>(c)...) {}
-	tuple() {}
 	template<size_t i>
 		requires(i < (sizeof...(Values) + 2))
-	decltype(auto) get() & {
+	auto& get() & {
+		if constexpr (i == 0) {
+			return value;
+		} else {
+			return args.template get<i - 1>();
+		}
+	}
+	tuple(){}
+	template<size_t i>
+		requires(i < (sizeof...(Values) + 2))
+	auto const& get() const& {
 		if constexpr (i == 0) {
 			return value;
 		} else {
@@ -53,20 +62,11 @@ struct tuple<A, B, Values...> {
 	}
 	template<size_t i>
 		requires(i < (sizeof...(Values) + 2))
-	decltype(auto) get() const& {
+	auto&& get() && {
 		if constexpr (i == 0) {
 			return value;
 		} else {
-			return args.template get<i - 1>();
-		}
-	}
-	template<size_t i>
-		requires(i < (sizeof...(Values) + 2))
-	decltype(auto) get() && {
-		if constexpr (i == 0) {
-			return value;
-		} else {
-			return std::move(args.template get<i - 1>());
+			return std::move(args).template get<i - 1>();
 		}
 	}
 };

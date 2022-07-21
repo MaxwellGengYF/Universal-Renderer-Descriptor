@@ -1,3 +1,4 @@
+set_policy("build.ccache", false)
 add_rules("mode.release", "mode.debug")
 function GetValue(funcOrValue)
     if type(funcOrValue) == 'function' then

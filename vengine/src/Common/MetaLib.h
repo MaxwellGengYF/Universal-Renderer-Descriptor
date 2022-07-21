@@ -747,6 +747,10 @@ static constexpr decltype(auto) GetVariantIndexSize() {
 }// namespace detail
 template<typename... Args>
 static constexpr bool AlwaysFalse = false;
+template<typename... Args>
+static constexpr bool AlwaysTrue = true;
+template <typename T>
+T& decl_lvalue(T&&){}
 template<typename... AA>
 class variant {
 public:
