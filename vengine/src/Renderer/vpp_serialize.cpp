@@ -192,7 +192,7 @@ void Runtime::Clear() {
 void Runtime::BatchMesh(void*) {
 	meshes.Clear();
 	colorBuffer.clear();
-	for (auto const& filePath : vstd::FileRange(singleFilePath)) {
+	for (auto&& filePath : vstd::FileRange(singleFilePath)) {
 		auto num = ParseGuidFromPath(filePath);
 		if (!num) {
 			continue;

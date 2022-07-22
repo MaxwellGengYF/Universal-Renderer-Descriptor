@@ -97,8 +97,7 @@ VENGINE_UNITY_EXTERN SpotLightCulling::CullUnit* spcAllocateCamera() {
 }
 VENGINE_UNITY_EXTERN void spcDestroyCamera(SpotLightCulling::CullUnit* ptr) {
 	using namespace SPC;
-	std::lock_guard lck(context->camLock);
-	SPC::context->cullUnitPool.Delete(ptr);
+	SPC::context->cullUnitPool.Delete_Lock(context->camLock, ptr);
 }
 VENGINE_UNITY_EXTERN void spcClearCameraCmd() {
 	using namespace SPC;
@@ -115,8 +114,7 @@ VENGINE_UNITY_EXTERN SpotLightCulling::MeshInstance* spcAllocateInstancer() {
 }
 VENGINE_UNITY_EXTERN void spcDestroyInstancer(SpotLightCulling::MeshInstance* ptr) {
 	using namespace SPC;
-	std::lock_guard lck(context->camLock);
-	SPC::context->instancePool.Delete(ptr);
+	SPC::context->instancePool.Delete_Lock(context->camLock, ptr);
 }
 VENGINE_UNITY_EXTERN void spcClearInstanceCmd() {
 	using namespace SPC;

@@ -117,6 +117,7 @@ void FileRange::operator++() {
 	while (_findnext(hFile, &fileinfo) == 0) {
 		if (!(fileinfo.attrib & _A_SUBDIR)) {
 			detail::LoadFileName(fileinfo, root, str);
+			return;
 		}
 	};
 }

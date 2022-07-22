@@ -7,7 +7,13 @@ namespace toolhub::dsk {
 struct DataSpan : public vstd::IOperatorNewBase {
 	void* data;
 	size_t size;
+	std::atomic_size_t refCount = 2;
 	std::atomic_bool loadState = false;
+	void Dispose() {
+		if (--refCount == 0) {
+			delete this;
+		}
+	}
 };
 struct DataSpanCopy : public vstd::IOperatorNewBase {
 	void* data;
@@ -37,6 +43,7 @@ void Data::operator()() {
 void Data::Execute(BinaryDiskRead const& cmd) {
 	auto disp = vstd::create_disposer([&] {
 		cmd.sp->loadState = true;
+		cmd.sp->Dispose();
 	});
 	BinaryReader reader(cmd.path);
 	if (!reader) {
@@ -55,7 +62,7 @@ VENGINE_UNITY_EXTERN void dskDestroy() {
 	data.Delete();
 }
 VENGINE_UNITY_EXTERN void dskDestroyCmd(DataSpan* sp) {
-    delete sp;
+	sp->Dispose();
 }
 struct AddCommand {
 	char const* pathName;
@@ -72,7 +79,9 @@ VENGINE_UNITY_EXTERN void dskAddCommands(AddCommand* cmd, uint64 count) {
 	data->thread.ExecuteNext();
 	cmd->result = sp;
 }
-
+VENGINE_UNITY_EXTERN void dskComplete(){
+	data->thread.Complete();
+}
 VENGINE_UNITY_EXTERN bool dskReadLoadState(DataSpan* sp) {
 	return sp->loadState.load();
 }

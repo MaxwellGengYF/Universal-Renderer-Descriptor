@@ -64,7 +64,7 @@ struct tuple<A, B, Values...> {
 		requires(i < (sizeof...(Values) + 2))
 	auto&& get() && {
 		if constexpr (i == 0) {
-			return value;
+			return std::move(value);
 		} else {
 			return std::move(args).template get<i - 1>();
 		}
