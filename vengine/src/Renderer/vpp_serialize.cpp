@@ -7,6 +7,7 @@
 #include <Common/ranges.h>
 #include <Common/tuple.h>
 #include <Utility/file_range.h>
+#include <taskflow/taskflow.hpp>
 namespace toolhub::vpp {
 #define SET_VPP_FUNCPTR(obj, name) table->SetCppFuncPtr(#name##_sv, [](void* arg) { obj.name(arg); })
 vstd::unique_ptr<unity::FuncTable> table;
@@ -302,8 +303,22 @@ VENGINE_UNITY_EXTERN void vppInit(unity::FuncTable* funcTable) {
 }
 }// namespace toolhub::vpp
 #ifdef DEBUG
-
 int main() {
+	{
+		tf::Executor executor;
+		tf::Taskflow flow;
+		flow.emplace([](tf::Subflow& flow) {
+			std::cout << "thread 0\n"_sv;
+			flow.emplace([](tf::Subflow& flow) {
+				std::cout << "thread 1\n"_sv;
+				flow.emplace([](tf::Subflow& flow) {
+					std::cout << "thread 2\n"_sv;
+				});
+			});
+		});
+		executor.run(std::move(flow)).wait();
+		
+	}
 	return 0;
 }
 #endif

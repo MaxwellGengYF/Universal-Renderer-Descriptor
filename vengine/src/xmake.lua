@@ -74,7 +74,7 @@ BuildProject({
             public = true
         })
         add_defines("COMMON_DLL_PROJECT")
-        add_files("Common/**.cpp", "Utility/**.cpp", "taskflow/src.cpp")
+        add_files("Common/**.cpp", "Utility/**.cpp")
         add_includedirs("./", {
             public = true
         })
@@ -93,6 +93,18 @@ BuildProject({
     unityBuildBatch = 4,
     exception = true
 })
+BuildProject({
+    projectName = "taskflow",
+    projectType = "shared",
+    event = function()
+        add_defines("TASKFLOW_EXPORT")
+        add_files("taskflow/src.cpp")
+        add_deps("VEngine_DLL", {public = true})
+        add_rules("copy_to_build")
+    end,
+    unityBuildBatch = 4,
+    exception = true
+})
 
 -- VEngine_Compute
 BuildProject({
@@ -100,7 +112,7 @@ BuildProject({
     projectType = "shared",
     event = function()
         add_files("ShaderVariantCull/**.cpp")
-        add_deps("VEngine_DLL")
+        add_deps("VEngine_DLL", "taskflow")
     end,
     exception = true
 })
@@ -109,7 +121,7 @@ BuildProject({
     projectType = "shared",
     event = function()
         add_files("Unity/**.cpp")
-        add_deps("VEngine_DLL")
+        add_deps("VEngine_DLL", {public = true})
         add_defines("VENGINE_UNITY_NATIVE")
     end,
     exception = true
@@ -120,7 +132,7 @@ BuildProject({
     projectType = "shared",
     event = function()
         add_files("Database/**.cpp")
-        add_deps("VEngine_DLL")
+        add_deps("taskflow")
         add_defines("VENGINE_DATABASE_PROJECT")
     end,
     exception = true
@@ -222,8 +234,8 @@ BuildProject({
         end
     end,
     event = function()
-        add_files("Renderer/**.cpp")
-        add_deps("VEngine_UnityNative")
+        add_files("Renderer/vpp_serialize.cpp")
+        add_deps("VEngine_UnityNative", "taskflow")
     end,
     releaseEvent = function()
         add_rules("copy_to_unity")

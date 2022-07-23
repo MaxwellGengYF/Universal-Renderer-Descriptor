@@ -1,5 +1,5 @@
 #pragma once
-#ifdef COMMON_DLL_PROJECT
+#ifdef TASKFLOW_EXPORT
 #define TF_API _declspec(dllexport)
 #else
 #define TF_API _declspec(dllimport)
@@ -20,4 +20,6 @@ template<typename T>
 using function = vstd::function<T>;
 inline void* tf_malloc(size_t size) { return vengine_malloc(size); }
 inline void tf_free(void* ptr) { vengine_free(ptr); }
+inline void* tf_realloc(void* ptr, size_t newSize) { return vengine_realloc(ptr, newSize); }
+using IOperatorNewBase = vstd::IOperatorNewBase;
 }// namespace tf

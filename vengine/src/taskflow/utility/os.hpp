@@ -141,7 +141,7 @@ inline string get_env(const string& str) {
 
   if(_dupenv_s(&ptr, &len, str.c_str()) == 0 && ptr != nullptr) {
     string res(ptr, len);
-    vengine_free(ptr);
+    tf_free(ptr);
     return res;
   }
   return "";
@@ -160,7 +160,7 @@ inline bool has_env(const string& str) {
 
   if(_dupenv_s(&ptr, &len, str.c_str()) == 0 && ptr != nullptr) {
     string res(ptr, len);
-    vengine_free(ptr);
+    tf_free(ptr);
     return true;
   }
   return false;

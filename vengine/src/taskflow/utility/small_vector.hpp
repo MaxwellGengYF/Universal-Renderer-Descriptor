@@ -82,7 +82,7 @@ protected:
       memcpy(NewElts, this->BeginX, CurSizeBytes);
     } else {
       // If this wasn't grown from the inline copy, grow the allocated space.
-      NewElts = vengine_realloc(this->BeginX, NewCapacityInBytes);
+      NewElts = tf_realloc(this->BeginX, NewCapacityInBytes);
     }
     //assert(NewElts && "Out of memory");
 
@@ -301,7 +301,7 @@ void SmallVectorTemplateBase<T, isPodLike>::grow(size_t MinSize) {
 
   // If this wasn't grown from the inline copy, deallocate the old space.
   if (!this->isSmall())
-    vengine_free(this->begin());
+    tf_free(this->begin());
 
   this->setEnd(NewElts+CurSize);
   this->BeginX = NewElts;
@@ -395,7 +395,7 @@ public:
 
     // If this wasn't grown from the inline copy, deallocate the old space.
     if (!this->isSmall())
-      vengine_free(this->begin());
+      tf_free(this->begin());
   }
 
 
@@ -822,7 +822,7 @@ SmallVectorImpl<T> &SmallVectorImpl<T>::operator=(SmallVectorImpl<T> &&RHS) {
   // If the RHS isn't small, clear this vector and then steal its buffer.
   if (!RHS.isSmall()) {
     this->destroy_range(this->begin(), this->end());
-    if (!this->isSmall()) vengine_free(this->begin());
+    if (!this->isSmall()) tf_free(this->begin());
     this->BeginX = RHS.BeginX;
     this->EndX = RHS.EndX;
     this->CapacityX = RHS.CapacityX;

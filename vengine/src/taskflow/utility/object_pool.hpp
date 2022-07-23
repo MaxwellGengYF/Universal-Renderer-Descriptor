@@ -229,8 +229,6 @@ ObjectPool<T, S>::~ObjectPool() {
 	for (auto& h : _lheaps) {
 		for (size_t i = 0; i < B; ++i) {
 			_for_each_block_safe(&h.lists[i], [&](Block* b) {
-				//vengine_free(b);
-				delete b;
 				dealloc_block(b);
 			});
 		}
@@ -238,7 +236,6 @@ ObjectPool<T, S>::~ObjectPool() {
 
 	// clear global heap
 	_for_each_block_safe(&_gheap.list, [&](Block* b) {
-		//vengine_free(b);
 		dealloc_block(b);
 	});
 }
